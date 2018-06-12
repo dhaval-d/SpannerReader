@@ -15,6 +15,10 @@ import java.io.BufferedReader;
 
 public class ReaderApp {
 
+    // Name of your instance & database.
+    static String instanceId = "";
+    static String databaseId = "";
+
 
     public static void main(String... args) throws Exception {
 
@@ -25,8 +29,8 @@ public class ReaderApp {
         // Instantiates a client
         SpannerOptions options = SpannerOptions.newBuilder()
                                                     .setSessionPoolOption(SessionPoolOptions.newBuilder()
-                                                            .setMinSessions(1000)
-                                                            .setMaxSessions(1500)
+                                                            .setMinSessions(15000)
+                                                            .setMaxSessions(25000)
                                                             .setKeepAliveIntervalMinutes(59)
                                                             .setFailIfPoolExhausted()
                                                             .setWriteSessionsFraction(0.8f)
@@ -35,8 +39,8 @@ public class ReaderApp {
         Spanner spanner = options.getService();
 
         // Name of your instance & database.
-        String instanceId = args[0];
-        String databaseId = args[1];
+        instanceId = args[0];
+        databaseId = args[1];
         String readType = args[2];
         String directoryPath = args[3];
 
@@ -50,9 +54,7 @@ public class ReaderApp {
 
 
         try {
-            // Creates a database client
-            DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
-                    options.getProjectId(), instanceId, databaseId));
+
 
             System.out.println("Started");
             ArrayList<String> keys = readFiles(directoryPath);
@@ -63,30 +65,30 @@ public class ReaderApp {
                 ///Based on user selection, perform reads
 
                 if (readType.equals("1")) {   //Stale read
-                    startTime = System.currentTimeMillis();
-                    performStaleRead(dbClient,key);
-                    elapsedTime = System.currentTimeMillis() - startTime;
+                    startTime = System.nanoTime();
+                    performStaleRead(spanner,options,key);
+                    elapsedTime = System.nanoTime() - startTime;
 
                 } else if (readType.equals("2")) {  //strong read
-                    startTime = System.currentTimeMillis();
-                    performStrongRead(dbClient,key);
-                    elapsedTime = System.currentTimeMillis() - startTime;
+                    startTime = System.nanoTime();
+                    performStrongRead(spanner,options,key);
+                    elapsedTime = System.nanoTime() - startTime;
 
                 } else if (readType.equals("3")) { //read only transaction
-                    startTime = System.currentTimeMillis();
-                    performReadOnlyTransaction(dbClient,key);
-                    elapsedTime = System.currentTimeMillis() - startTime;
+                    startTime = System.nanoTime();
+                    performReadOnlyTransaction(spanner,options,key);
+                    elapsedTime = System.nanoTime() - startTime;
 
                 } else if (readType.equals("4")) { //read-write transaction
-                    startTime = System.currentTimeMillis();
-                    performReadWriteTransaction(dbClient,key);
-                    elapsedTime = System.currentTimeMillis() - startTime;
+                    startTime = System.nanoTime();
+                    performReadWriteTransaction(spanner,options,key);
+                    elapsedTime = System.nanoTime() - startTime;
                 }
 
                 totalElapsedTime += elapsedTime;
                 totalReadCount += 1;
 
-                if(totalReadCount % 10 == 0 ){
+                if(totalReadCount % 10000 == 0 ){
                     System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
                     System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
                     System.out.println("Average Read Time/Op   :"+Float.toString(totalElapsedTime/totalReadCount));
@@ -113,11 +115,14 @@ public class ReaderApp {
     public static ArrayList<String> readFiles(String directoryPath) {
         ArrayList<String> results=new ArrayList<String>();
 
-        for (int counter=0; counter<2; counter++) {
-            String filename = directoryPath +"/"+"file_"+Integer.toString(counter);
+        File files = new File(directoryPath);
+        String[] strFiles = files.list();
 
+
+
+        for (int counter=0; counter < strFiles.length && counter < 10; counter++) {
             try {
-                File file = new File(filename);
+                File file = new File(directoryPath+"/"+ strFiles[counter]);
                 FileReader fileReader = new FileReader(file);
                 BufferedReader bufferedReader = new BufferedReader(fileReader);
                 String line;
@@ -133,7 +138,10 @@ public class ReaderApp {
     }
 
 
-    public static void performStaleRead(DatabaseClient dbClient,String keyField) throws Exception{
+    public static void performStaleRead(Spanner spanner,SpannerOptions options,String keyField) throws Exception{
+        // Creates a database client
+        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
+                options.getProjectId(), instanceId, databaseId));
         Statement statement = Statement
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
@@ -154,7 +162,10 @@ public class ReaderApp {
     }
 
 
-    public static void performStrongRead(DatabaseClient dbClient,String keyField)  throws Exception{
+    public static void performStrongRead(Spanner spanner,SpannerOptions options,String keyField)  throws Exception{
+        // Creates a database client
+        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
+                options.getProjectId(), instanceId, databaseId));
         Statement statement = Statement
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
@@ -177,7 +188,10 @@ public class ReaderApp {
     }
 
 
-    public static void performReadOnlyTransaction(DatabaseClient dbClient,String keyField) throws Exception{
+    public static void performReadOnlyTransaction(Spanner spanner,SpannerOptions options,String keyField) throws Exception{
+        // Creates a database client
+        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
+                options.getProjectId(), instanceId, databaseId));
         Statement statement = Statement
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
@@ -203,7 +217,10 @@ public class ReaderApp {
     }
 
 
-    public static void performReadWriteTransaction(DatabaseClient dbClient,String keyField) throws Exception{
+    public static void performReadWriteTransaction(Spanner spanner,SpannerOptions options,String keyField) throws Exception{
+        // Creates a database client
+        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
+                options.getProjectId(), instanceId, databaseId));
         Statement statement = Statement
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
