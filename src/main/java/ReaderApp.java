@@ -13,75 +13,120 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.BufferedReader;
 
+
+import io.opencensus.common.Scope;
+import io.opencensus.contrib.grpc.metrics.RpcViews;
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
+import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
+import io.opencensus.trace.Tracing;
+import io.opencensus.trace.samplers.Samplers;
+
+
+import java.util.Arrays;
+import java.util.List;
+
 public class ReaderApp {
 
     // Name of your instance & database.
-    static String instanceId = "";
-    static String databaseId = "";
+    private static String instanceId = "";
+    private static String databaseId = "";
+    private static String parentSpanName = "read-keys";
+
+    private SpannerOptions options;
+    private Spanner spanner;
 
 
+    public ReaderApp() throws Exception{
+        // Next up let's  install the exporter for Stackdriver tracing.
+        StackdriverExporter.createAndRegister();
+        Tracing.getExportComponent().getSampledSpanStore().registerSpanNamesForCollection(
+                Arrays.asList(parentSpanName));
+
+
+        // Then the exporter for Stackdriver monitoring/metrics.
+        StackdriverStatsExporter.createAndRegister();
+        RpcViews.registerAllCumulativeViews();
+
+        // Instantiates a client
+        options = SpannerOptions.newBuilder()
+                .setSessionPoolOption(SessionPoolOptions.newBuilder()
+                        .setMinSessions(10000)
+                        .setMaxSessions(12000)
+                        .setKeepAliveIntervalMinutes(1)
+                        .setFailIfPoolExhausted()
+                        .setWriteSessionsFraction(0.00001f)
+                        .build())
+                .build();
+        spanner = options.getService();
+
+    }
+
+
+    // Next up let's  install the exporter for Stackdriver tracing.
     public static void main(String... args) throws Exception {
-
         if (args.length != 4) {
-            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type>");
+            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path>");
             return;
         }
-        // Instantiates a client
-        SpannerOptions options = SpannerOptions.newBuilder()
-                                                    .setSessionPoolOption(SessionPoolOptions.newBuilder()
-                                                            .setMinSessions(15000)
-                                                            .setMaxSessions(25000)
-                                                            .setKeepAliveIntervalMinutes(59)
-                                                            .setFailIfPoolExhausted()
-                                                            .setWriteSessionsFraction(0.8f)
-                                                            .build())
-                                                    .build();
-        Spanner spanner = options.getService();
-
         // Name of your instance & database.
         instanceId = args[0];
         databaseId = args[1];
         String readType = args[2];
         String directoryPath = args[3];
 
+        //Read files to get a list of keys
+        ArrayList<String> keys=null;
+        try {
+            keys = readFiles(directoryPath);
+            System.out.println("Keys read: " + Integer.toString(keys.size()));
+        } catch(Exception ex) {
+
+        }
+
         // calculation parameters
         long totalElapsedTime = 0;
         long totalReadCount = 0;
-
         //timer
         long startTime = 0L;
         long elapsedTime = 0L;
 
-
+        ReaderApp rApp= new ReaderApp();
         try {
-
-
-            System.out.println("Started");
-            ArrayList<String> keys = readFiles(directoryPath);
-            System.out.println("Keys read: " +Integer.toString(keys.size()));
-
             //loop through all keys
             for(String key:keys){
                 ///Based on user selection, perform reads
 
                 if (readType.equals("1")) {   //Stale read
                     startTime = System.nanoTime();
-                    performStaleRead(spanner,options,key);
+                    try (Scope ss = Tracing.getTracer()
+                            .spanBuilderWithExplicitParent(parentSpanName, null)
+                            // Enable the trace sampler.
+                            //  We are always sampling for demo purposes only: this is a very high sampling
+                            // rate, but sufficient for the purpose of this quick demo.
+                            // More realistically perhaps tracing 1 in 10,000 might be more useful
+                            .setSampler(Samplers.alwaysSample())
+                            .startScopedSpan()) {
+
+                    rApp.performStaleRead(key);
                     elapsedTime = System.nanoTime() - startTime;
+
+                    } finally {
+                    }
+
 
                 } else if (readType.equals("2")) {  //strong read
                     startTime = System.nanoTime();
-                    performStrongRead(spanner,options,key);
+                    rApp.performStrongRead(key);
                     elapsedTime = System.nanoTime() - startTime;
 
                 } else if (readType.equals("3")) { //read only transaction
                     startTime = System.nanoTime();
-                    performReadOnlyTransaction(spanner,options,key);
+                    rApp.performReadOnlyTransaction(key);
                     elapsedTime = System.nanoTime() - startTime;
 
                 } else if (readType.equals("4")) { //read-write transaction
                     startTime = System.nanoTime();
-                    performReadWriteTransaction(spanner,options,key);
+                    rApp.performReadWriteTransaction(key);
                     elapsedTime = System.nanoTime() - startTime;
                 }
 
@@ -94,18 +139,15 @@ public class ReaderApp {
                     System.out.println("Average Read Time/Op   :"+Float.toString(totalElapsedTime/totalReadCount));
                 }
             }
-
+        } finally {
+            // Closes the client which will free up the resources used
+            rApp.closeService();
+            // Prints the results
             System.out.println("\n\n FINAL RESULTS");
             System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
             System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
             System.out.println("Average Read Time/Op   :"+Float.toString(totalElapsedTime/totalReadCount));
 
-
-            // Prints the results
-
-        } finally {
-            // Closes the client which will free up the resources used
-            spanner.close();
         }
     }
 
@@ -137,8 +179,13 @@ public class ReaderApp {
         return results;
     }
 
+    // Close Spanner service to release all resources
+    private void closeService(){
+            spanner.close();
+    }
 
-    public static void performStaleRead(Spanner spanner,SpannerOptions options,String keyField) throws Exception{
+    // Perform a stale read with exact staleness of 15 seconds
+    private void performStaleRead(String keyField) throws Exception{
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
@@ -161,8 +208,8 @@ public class ReaderApp {
         }
     }
 
-
-    public static void performStrongRead(Spanner spanner,SpannerOptions options,String keyField)  throws Exception{
+    // Perform a string read
+    private void performStrongRead(String keyField)  throws Exception{
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
@@ -187,8 +234,8 @@ public class ReaderApp {
 
     }
 
-
-    public static void performReadOnlyTransaction(Spanner spanner,SpannerOptions options,String keyField) throws Exception{
+    // Perform a readonly transaction
+    private void performReadOnlyTransaction(String keyField) throws Exception{
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
@@ -216,8 +263,8 @@ public class ReaderApp {
 
     }
 
-
-    public static void performReadWriteTransaction(Spanner spanner,SpannerOptions options,String keyField) throws Exception{
+    // Perform a read write transaction and throw an exception to roll back after read
+    private void performReadWriteTransaction(String keyField) throws Exception{
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
