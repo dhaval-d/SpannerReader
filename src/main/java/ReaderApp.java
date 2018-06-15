@@ -23,7 +23,8 @@ import io.opencensus.trace.samplers.Samplers;
 
 
 import java.util.Arrays;
-import java.util.List;
+import java.io.PrintStream;
+import java.io.OutputStream;
 
 public class ReaderApp {
 
@@ -57,7 +58,13 @@ public class ReaderApp {
                         .setWriteSessionsFraction(0.00001f)
                         .build())
                 .build();
+
         spanner = options.getService();
+        System.setErr(new PrintStream(new OutputStream() {
+            public void write(int b) {
+            }
+        }));
+
 
     }
 
@@ -146,6 +153,7 @@ public class ReaderApp {
         } finally {
             // Closes the client which will free up the resources used
             rApp.closeService();
+
             // Prints the results
             System.out.println("\n\n FINAL RESULTS");
             System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
