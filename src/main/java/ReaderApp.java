@@ -128,7 +128,12 @@ public class ReaderApp {
 
                     } else if (readType.equals("4")) { //read-write transaction
                         startTime = System.nanoTime();
-                        rApp.performReadWriteTransaction(key);
+                        try{
+                            rApp.performReadWriteTransaction(key);
+                        } catch(Exception ex){
+
+                        }
+
                         elapsedTime = System.nanoTime() - startTime;
                     }
                 }
