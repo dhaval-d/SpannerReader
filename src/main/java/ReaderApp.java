@@ -84,8 +84,8 @@ public class ReaderApp {
         databaseId = args[1];
         String readType = args[2];
         String directoryPath = args[3];
-        minSessions = Integer.getInteger(args[4]);
-        maxSessions = Integer.getInteger(args[5]);
+        minSessions = Integer.parseInt(args[4]);
+        maxSessions = Integer.parseInt(args[5]);
 
         //Read files to get a list of keys
         ArrayList<String> keys=null;
