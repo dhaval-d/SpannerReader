@@ -33,6 +33,9 @@ public class ReaderApp {
     private static String databaseId = "";
     private static String parentSpanName = "read-keys";
 
+    private static int minSessions = 0;
+    private static int maxSessions = 0;
+
     private SpannerOptions options;
     private Spanner spanner;
 
@@ -51,8 +54,8 @@ public class ReaderApp {
         // Instantiates a client
         options = SpannerOptions.newBuilder()
                 .setSessionPoolOption(SessionPoolOptions.newBuilder()
-                        .setMinSessions(10000)
-                        .setMaxSessions(12000)
+                        .setMinSessions(minSessions)
+                        .setMaxSessions(maxSessions)
                         .setKeepAliveIntervalMinutes(1)
                         .setFailIfPoolExhausted()
                         .setWriteSessionsFraction(0.00001f)
@@ -60,6 +63,7 @@ public class ReaderApp {
                 .build();
 
         spanner = options.getService();
+        // Avoid printing spanner warning messages
         System.setErr(new PrintStream(new OutputStream() {
             public void write(int b) {
             }
@@ -71,8 +75,8 @@ public class ReaderApp {
 
     // Next up let's  install the exporter for Stackdriver tracing.
     public static void main(String... args) throws Exception {
-        if (args.length != 4) {
-            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path>");
+        if (args.length != 6) {
+            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions>");
             return;
         }
         // Name of your instance & database.
@@ -80,6 +84,8 @@ public class ReaderApp {
         databaseId = args[1];
         String readType = args[2];
         String directoryPath = args[3];
+        minSessions = Integer.getInteger(args[4]);
+        maxSessions = Integer.getInteger(args[5]);
 
         //Read files to get a list of keys
         ArrayList<String> keys=null;
@@ -98,13 +104,28 @@ public class ReaderApp {
         long elapsedTime = 0L;
 
         ReaderApp rApp= new ReaderApp();
-        try {
 
+            String childWorkSpan = "";
+            switch(readType) {
+                case "1":
+                    childWorkSpan = "Stale_Read";
+                    break;
+                case "2":
+                    childWorkSpan = "Strong_Read";
+                    break;
+                case "3":
+                    childWorkSpan = "ReadOnly_Transaction";
+                    break;
+                case "4":
+                    childWorkSpan = "ReadWrite_Transaction";
+                    break;
+            }
+        try {
             //loop through all keys
             for(String key:keys) {
                 ///Based on user selection, perform reads
                 try (Scope ss = Tracing.getTracer()
-                        .spanBuilderWithExplicitParent(parentSpanName, null)
+                        .spanBuilder(childWorkSpan)
                         // Enable the trace sampler.
                         //  We are always sampling for demo purposes only: this is a very high sampling
                         // rate, but sufficient for the purpose of this quick demo.
@@ -113,28 +134,28 @@ public class ReaderApp {
                         .startScopedSpan()) {
 
                     if (readType.equals("1")) {   //Stale read
-                        startTime = System.nanoTime();
+                        startTime = System.currentTimeMillis();
                         rApp.performStaleRead(key);
-                        elapsedTime = System.nanoTime() - startTime;
+                        elapsedTime = System.currentTimeMillis() - startTime;
                     } else if (readType.equals("2")) {  //strong read
-                        startTime = System.nanoTime();
+                        startTime = System.currentTimeMillis();
                         rApp.performStrongRead(key);
-                        elapsedTime = System.nanoTime() - startTime;
+                        elapsedTime = System.currentTimeMillis() - startTime;
 
                     } else if (readType.equals("3")) { //read only transaction
-                        startTime = System.nanoTime();
+                        startTime = System.currentTimeMillis();
                         rApp.performReadOnlyTransaction(key);
-                        elapsedTime = System.nanoTime() - startTime;
+                        elapsedTime = System.currentTimeMillis() - startTime;
 
                     } else if (readType.equals("4")) { //read-write transaction
-                        startTime = System.nanoTime();
+                        startTime = System.currentTimeMillis();
                         try{
                             rApp.performReadWriteTransaction(key);
                         } catch(Exception ex){
 
                         }
 
-                        elapsedTime = System.nanoTime() - startTime;
+                        elapsedTime = System.currentTimeMillis() - startTime;
                     }
                 }
                  finally {
