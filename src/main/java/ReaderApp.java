@@ -254,14 +254,19 @@ public class ReaderApp {
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
+        tracer.getCurrentSpan().addAnnotation("Created DbClient");
+
         Statement statement = Statement
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
                 .build();
+        tracer.getCurrentSpan().addAnnotation("Created Statement");
 
         // Queries the database
         ResultSet resultSet = dbClient
                                 .singleUse().executeQuery(statement);
+        tracer.getCurrentSpan().addAnnotation("Executed Query");
+
 
         while (resultSet.next()) {
             String result = resultSet.getString(0);
@@ -280,16 +285,21 @@ public class ReaderApp {
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
+        tracer.getCurrentSpan().addAnnotation("Created DbClient");
+
         Statement statement = Statement
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
                 .build();
+        tracer.getCurrentSpan().addAnnotation("Created Statement");
 
         // ReadOnlyTransaction must be closed by calling close() on it to release resources held by it.
         // We use a try-with-resource block to automatically do so.
         try (ReadOnlyTransaction transaction = dbClient.readOnlyTransaction()) {
             ResultSet resultSet =
                     transaction.executeQuery(statement);
+            tracer.getCurrentSpan().addAnnotation("Executed Query");
+
             while (resultSet.next()) {
                 String result = resultSet.getString(0);
                 // match found
@@ -309,10 +319,13 @@ public class ReaderApp {
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
+        tracer.getCurrentSpan().addAnnotation("Created DbClient");
+
         Statement statement = Statement
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
                 .build();
+        tracer.getCurrentSpan().addAnnotation("Created Statement");
 
         dbClient
                 .readWriteTransaction()
@@ -332,6 +345,7 @@ public class ReaderApp {
                                         throw new Exception();
                                     }
                                 }
+                                tracer.getCurrentSpan().addAnnotation("Executed Query");
 
                                 throw new Exception();
                             }
