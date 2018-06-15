@@ -20,7 +20,7 @@ import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
 import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
 import io.opencensus.trace.Tracing;
 import io.opencensus.trace.samplers.Samplers;
-
+import io.opencensus.trace.Tracer;
 
 import java.util.Arrays;
 import java.io.PrintStream;
@@ -124,7 +124,9 @@ public class ReaderApp {
             //loop through all keys
             for(String key:keys) {
                 ///Based on user selection, perform reads
-                try (Scope ss = Tracing.getTracer()
+                final Tracer tracer = Tracing.getTracer();
+
+                try (Scope ss = tracer
                         .spanBuilder(childWorkSpan)
                         // Enable the trace sampler.
                         //  We are always sampling for demo purposes only: this is a very high sampling
@@ -135,22 +137,22 @@ public class ReaderApp {
 
                     if (readType.equals("1")) {   //Stale read
                         startTime = System.currentTimeMillis();
-                        rApp.performStaleRead(key);
+                        rApp.performStaleRead(tracer,key);
                         elapsedTime = System.currentTimeMillis() - startTime;
                     } else if (readType.equals("2")) {  //strong read
                         startTime = System.currentTimeMillis();
-                        rApp.performStrongRead(key);
+                        rApp.performStrongRead(tracer,key);
                         elapsedTime = System.currentTimeMillis() - startTime;
 
                     } else if (readType.equals("3")) { //read only transaction
                         startTime = System.currentTimeMillis();
-                        rApp.performReadOnlyTransaction(key);
+                        rApp.performReadOnlyTransaction(tracer,key);
                         elapsedTime = System.currentTimeMillis() - startTime;
 
                     } else if (readType.equals("4")) { //read-write transaction
                         startTime = System.currentTimeMillis();
                         try{
-                            rApp.performReadWriteTransaction(key);
+                            rApp.performReadWriteTransaction(tracer,key);
                         } catch(Exception ex){
 
                         }
@@ -217,17 +219,22 @@ public class ReaderApp {
     }
 
     // Perform a stale read with exact staleness of 15 seconds
-    private void performStaleRead(String keyField) throws Exception{
+    private void performStaleRead(Tracer tracer,String keyField) throws Exception{
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
+
+        tracer.getCurrentSpan().addAnnotation("Created DbClient");
+
         Statement statement = Statement
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
                 .build();
-
+        tracer.getCurrentSpan().addAnnotation("Created Statement");
         ResultSet resultSet = dbClient
                 .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS)).executeQuery(statement);
+
+        tracer.getCurrentSpan().addAnnotation("Executed Query");
 
         while (resultSet.next()) {
             String result = resultSet.getString(0);
@@ -238,10 +245,11 @@ public class ReaderApp {
                 throw new Exception();
             }
         }
+        tracer.getCurrentSpan().addAnnotation("Returned resultset.");
     }
 
     // Perform a string read
-    private void performStrongRead(String keyField)  throws Exception{
+    private void performStrongRead(Tracer tracer,String keyField)  throws Exception{
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
@@ -267,7 +275,7 @@ public class ReaderApp {
     }
 
     // Perform a readonly transaction
-    private void performReadOnlyTransaction(String keyField) throws Exception{
+    private void performReadOnlyTransaction(Tracer tracer,String keyField) throws Exception{
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
@@ -296,7 +304,7 @@ public class ReaderApp {
     }
 
     // Perform a read write transaction and throw an exception to roll back after read
-    private void performReadWriteTransaction(String keyField) throws Exception{
+    private void performReadWriteTransaction(Tracer tracer,String keyField) throws Exception{
         // Creates a database client
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), instanceId, databaseId));
