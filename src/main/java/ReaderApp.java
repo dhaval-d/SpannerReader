@@ -57,7 +57,7 @@ public class ReaderApp {
                         .setMinSessions(minSessions)
                         .setMaxSessions(maxSessions)
                         .setKeepAliveIntervalMinutes(1)
-                        .setFailIfPoolExhausted()
+                        .setBlockIfPoolExhausted()
                         .setWriteSessionsFraction(0.00001f)
                         .build())
                 .build();
