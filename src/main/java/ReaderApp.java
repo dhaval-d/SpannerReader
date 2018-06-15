@@ -99,42 +99,40 @@ public class ReaderApp {
 
         ReaderApp rApp= new ReaderApp();
         try {
-            try (Scope ss = Tracing.getTracer()
-                    .spanBuilderWithExplicitParent(parentSpanName, null)
-                    // Enable the trace sampler.
-                    //  We are always sampling for demo purposes only: this is a very high sampling
-                    // rate, but sufficient for the purpose of this quick demo.
-                    // More realistically perhaps tracing 1 in 10,000 might be more useful
-                    .setSampler(Samplers.alwaysSample())
-                    .startScopedSpan()) {
+
             //loop through all keys
-            for(String key:keys){
+            for(String key:keys) {
                 ///Based on user selection, perform reads
+                try (Scope ss = Tracing.getTracer()
+                        .spanBuilderWithExplicitParent(parentSpanName, null)
+                        // Enable the trace sampler.
+                        //  We are always sampling for demo purposes only: this is a very high sampling
+                        // rate, but sufficient for the purpose of this quick demo.
+                        // More realistically perhaps tracing 1 in 10,000 might be more useful
+                        .setSampler(Samplers.alwaysSample())
+                        .startScopedSpan()) {
 
-                if (readType.equals("1")) {   //Stale read
-                    startTime = System.nanoTime();
+                    if (readType.equals("1")) {   //Stale read
+                        startTime = System.nanoTime();
+                        rApp.performStaleRead(key);
+                        elapsedTime = System.nanoTime() - startTime;
+                    } else if (readType.equals("2")) {  //strong read
+                        startTime = System.nanoTime();
+                        rApp.performStrongRead(key);
+                        elapsedTime = System.nanoTime() - startTime;
 
+                    } else if (readType.equals("3")) { //read only transaction
+                        startTime = System.nanoTime();
+                        rApp.performReadOnlyTransaction(key);
+                        elapsedTime = System.nanoTime() - startTime;
 
-                    rApp.performStaleRead(key);
-                    elapsedTime = System.nanoTime() - startTime;
-
-
-
-
-                } else if (readType.equals("2")) {  //strong read
-                    startTime = System.nanoTime();
-                    rApp.performStrongRead(key);
-                    elapsedTime = System.nanoTime() - startTime;
-
-                } else if (readType.equals("3")) { //read only transaction
-                    startTime = System.nanoTime();
-                    rApp.performReadOnlyTransaction(key);
-                    elapsedTime = System.nanoTime() - startTime;
-
-                } else if (readType.equals("4")) { //read-write transaction
-                    startTime = System.nanoTime();
-                    rApp.performReadWriteTransaction(key);
-                    elapsedTime = System.nanoTime() - startTime;
+                    } else if (readType.equals("4")) { //read-write transaction
+                        startTime = System.nanoTime();
+                        rApp.performReadWriteTransaction(key);
+                        elapsedTime = System.nanoTime() - startTime;
+                    }
+                }
+                 finally {
                 }
 
                 totalElapsedTime += elapsedTime;
@@ -145,10 +143,6 @@ public class ReaderApp {
                     System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
                     System.out.println("Average Read Time/Op   :"+Float.toString(totalElapsedTime/totalReadCount));
                 }
-            }
-
-            }
-            finally {
             }
         } finally {
             // Closes the client which will free up the resources used
