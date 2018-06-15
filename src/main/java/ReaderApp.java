@@ -92,26 +92,26 @@ public class ReaderApp {
 
         ReaderApp rApp= new ReaderApp();
         try {
+            try (Scope ss = Tracing.getTracer()
+                    .spanBuilderWithExplicitParent(parentSpanName, null)
+                    // Enable the trace sampler.
+                    //  We are always sampling for demo purposes only: this is a very high sampling
+                    // rate, but sufficient for the purpose of this quick demo.
+                    // More realistically perhaps tracing 1 in 10,000 might be more useful
+                    .setSampler(Samplers.alwaysSample())
+                    .startScopedSpan()) {
             //loop through all keys
             for(String key:keys){
                 ///Based on user selection, perform reads
 
                 if (readType.equals("1")) {   //Stale read
                     startTime = System.nanoTime();
-                    try (Scope ss = Tracing.getTracer()
-                            .spanBuilderWithExplicitParent(parentSpanName, null)
-                            // Enable the trace sampler.
-                            //  We are always sampling for demo purposes only: this is a very high sampling
-                            // rate, but sufficient for the purpose of this quick demo.
-                            // More realistically perhaps tracing 1 in 10,000 might be more useful
-                            .setSampler(Samplers.alwaysSample())
-                            .startScopedSpan()) {
+
 
                     rApp.performStaleRead(key);
                     elapsedTime = System.nanoTime() - startTime;
 
-                    } finally {
-                    }
+
 
 
                 } else if (readType.equals("2")) {  //strong read
@@ -138,6 +138,10 @@ public class ReaderApp {
                     System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
                     System.out.println("Average Read Time/Op   :"+Float.toString(totalElapsedTime/totalReadCount));
                 }
+            }
+
+            }
+            finally {
             }
         } finally {
             // Closes the client which will free up the resources used
