@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.io.PrintStream;
 import java.io.OutputStream;
 
+
+
 public class ReaderApp {
 
     // Name of your instance & database.
@@ -255,54 +257,66 @@ public class ReaderApp {
 
         String childWorkSpan = getTransactionType(readType);
         try {
-            //loop through all keys
-            for(String key:keys) {
-                ///Based on user selection, perform reads
-                final Tracer tracer = Tracing.getTracer();
+            // let's loop 10 times with 2 minute sleeps every time inner loop finishes
+            // trying to simulate Ming's issue of session timeout.. I set setKeepAliveIntervalMinutes to 1 minute
+            for(int counter=0;counter<10;counter++){
+                System.out.println("Iteration Start : "+ Integer.toString(counter));
 
-                try (Scope ss = tracer
-                        .spanBuilder(childWorkSpan)
-                        // Enable the trace sampler.
-                        // We are always sampling for demo purposes only: this is a very high sampling
-                        // rate, but sufficient for the purpose of this quick demo.
-                        // More realistically perhaps tracing 1 in 10,000 might be more useful
-                        .setSampler(Samplers.alwaysSample())
-                        .startScopedSpan()) {
+                //loop through all keys
+                for(String key:keys) {
+                    ///Based on user selection, perform reads
+                    final Tracer tracer = Tracing.getTracer();
 
-                    // start timer
-                    startTime = System.currentTimeMillis();
-                    //execute based on readType selected by user
-                    switch(readType) {
-                        case "1":
-                            rApp.performStaleRead(tracer,key);
-                            break;
-                        case "2":
-                            rApp.performStrongRead(tracer,key);
-                            break;
-                        case "3":
-                            rApp.performReadOnlyTransaction(tracer,key);
-                            break;
-                        case "4":
-                            // try-catch needed because I am rolling back txn by throwing exception
-                            try{
-                                rApp.performReadWriteTransaction(tracer,key);
-                            } catch(Exception ex){
-                            }
-                            break;
+                    try (Scope ss = tracer
+                            .spanBuilder(childWorkSpan)
+                            // Enable the trace sampler.
+                            // We are always sampling for demo purposes only: this is a very high sampling
+                            // rate, but sufficient for the purpose of this quick demo.
+                            // More realistically perhaps tracing 1 in 10,000 might be more useful
+                            .setSampler(Samplers.alwaysSample())
+                            .startScopedSpan()) {
+
+                        // start timer
+                        startTime = System.currentTimeMillis();
+                        //execute based on readType selected by user
+                        switch(readType) {
+                            case "1":
+                                rApp.performStaleRead(tracer,key);
+                                break;
+                            case "2":
+                                rApp.performStrongRead(tracer,key);
+                                break;
+                            case "3":
+                                rApp.performReadOnlyTransaction(tracer,key);
+                                break;
+                            case "4":
+                                // try-catch needed because I am rolling back txn by throwing exception
+                                try{
+                                    rApp.performReadWriteTransaction(tracer,key);
+                                } catch(Exception ex){
+                                }
+                                break;
+                        }
+                        // end timer
+                        elapsedTime = System.currentTimeMillis() - startTime;
                     }
-                    // end timer
-                    elapsedTime = System.currentTimeMillis() - startTime;
-                }
-                finally {
+                    finally {
+                    }
+
+                    // update running total
+                    totalElapsedTime += elapsedTime;
+                    totalReadCount += 1;
+
+                    if(totalReadCount % 1000 == 0 ){
+                        printStatus(totalElapsedTime, totalReadCount);
+                    }
                 }
 
-                // update running total
-                totalElapsedTime += elapsedTime;
-                totalReadCount += 1;
+                System.out.println("Iteration End: "+ Integer.toString(counter));
+                System.out.println("Sleeping 1 minute");
+                // Sleep 2 minutes. Assumption is sessions are deleted by now.
+                Thread.sleep(1000000*60*2);
 
-                if(totalReadCount % 1000 == 0 ){
-                    printStatus(totalElapsedTime, totalReadCount);
-                }
             }
         } finally {
             // Closes the client which will free up the resources used
