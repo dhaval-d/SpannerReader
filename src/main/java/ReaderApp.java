@@ -222,8 +222,8 @@ public class ReaderApp {
 
     // main
     public static void main(String... args) throws Exception {
-        if (args.length != 6) {
-            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions>");
+        if (args.length != 7) {
+            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions> <max_iterations>");
             return;
         }
         // Name of your instance & database.
@@ -236,6 +236,7 @@ public class ReaderApp {
         // PoolSession min and max count
         minSessions = Integer.parseInt(args[4]);
         maxSessions = Integer.parseInt(args[5]);
+        int max_iterations = Integer.parseInt(args[6]);
 
         //Read files to get a list of keys
         ArrayList<String> keys=null;
@@ -257,9 +258,9 @@ public class ReaderApp {
 
         String childWorkSpan = getTransactionType(readType);
         try {
-            // let's loop 10 times with 2 minute sleeps every time inner loop finishes
+            // let's loop max_iterations times with 2 minute sleeps every time inner loop finishes
             // trying to simulate Ming's issue of session timeout.. I set setKeepAliveIntervalMinutes to 1 minute
-            for(int counter=0;counter<10;counter++){
+            for(int counter=0;counter<max_iterations;counter++){
                 System.out.println("Iteration Start : "+ Integer.toString(counter));
 
                 //loop through all keys
@@ -307,13 +308,14 @@ public class ReaderApp {
                     totalElapsedTime += elapsedTime;
                     totalReadCount += 1;
 
+                    // print feedback every 1000 reads
                     if(totalReadCount % 1000 == 0 ){
                         printStatus(totalElapsedTime, totalReadCount);
                     }
                 }
 
                 System.out.println("Iteration End: "+ Integer.toString(counter));
-                System.out.println("Sleeping 1 minute");
+                System.out.println("Sleeping 2 minutes because Session inactive time is 1 minute.");
                 // Sleep 2 minutes. Assumption is sessions are deleted by now.
                 Thread.sleep(1000*60*2);
 
