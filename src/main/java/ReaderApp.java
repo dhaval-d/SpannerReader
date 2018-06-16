@@ -232,21 +232,26 @@ public class ReaderApp {
                 .bind("KEY_FIELD").to(keyField)
                 .build();
         tracer.getCurrentSpan().addAnnotation("Created Statement");
-        ResultSet resultSet = dbClient
-                .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS)).executeQuery(statement);
 
-        tracer.getCurrentSpan().addAnnotation("Executed Query");
+        // Queries the database
+        try(ResultSet resultSet = dbClient
+                .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
+                .executeQuery(statement)){
+            tracer.getCurrentSpan().addAnnotation("Executed Query");
 
-        while (resultSet.next()) {
-            String result = resultSet.getString(0);
-            // match found
-            if(result.equals(keyField)){
-                break;
-            } else {
-                throw new Exception();
+            while (resultSet.next()) {
+                String result = resultSet.getString(0);
+                // match found
+                if(result.equals(keyField)){
+                    break;
+                } else {
+                    throw new Exception();
+                }
             }
+        } finally {
+            tracer.getCurrentSpan().addAnnotation("Closed Results");
+
         }
-        tracer.getCurrentSpan().addAnnotation("Returned resultset.");
     }
 
     // Perform a string read
@@ -263,21 +268,20 @@ public class ReaderApp {
         tracer.getCurrentSpan().addAnnotation("Created Statement");
 
         // Queries the database
-        ResultSet resultSet = dbClient
-                                .singleUse().executeQuery(statement);
-        tracer.getCurrentSpan().addAnnotation("Executed Query");
-
-
-        while (resultSet.next()) {
-            String result = resultSet.getString(0);
-            // match found
-            if(result.equals(keyField)){
-                break;
-            } else {
-                throw new Exception();
+        try(ResultSet resultSet = dbClient.singleUse().executeQuery(statement)){
+            tracer.getCurrentSpan().addAnnotation("Executed Query");
+            while (resultSet.next()) {
+                String result = resultSet.getString(0);
+                // match found
+                if(result.equals(keyField)){
+                    break;
+                } else {
+                    throw new Exception();
+                }
             }
+        } finally {
+            tracer.getCurrentSpan().addAnnotation("Closed Results");
         }
-
     }
 
     // Perform a readonly transaction
@@ -309,7 +313,10 @@ public class ReaderApp {
                     throw new Exception();
                 }
             }
+            resultSet.close();
 
+        } finally {
+            tracer.getCurrentSpan().addAnnotation("Closed Results");
         }
 
     }
@@ -336,6 +343,8 @@ public class ReaderApp {
                                 // Transfer marketing budget from one album to another. We do it in a transaction to
                                 // ensure that the transfer is atomic.
                                 ResultSet resultSet = transaction.executeQuery(statement);
+                                tracer.getCurrentSpan().addAnnotation("Executed Query");
+
                                 while (resultSet.next()) {
                                     String result = resultSet.getString(0);
                                     // match found
@@ -345,8 +354,8 @@ public class ReaderApp {
                                         throw new Exception();
                                     }
                                 }
-                                tracer.getCurrentSpan().addAnnotation("Executed Query");
-
+                                resultSet.close();
+                                tracer.getCurrentSpan().addAnnotation("Closed Results");
                                 throw new Exception();
                             }
                         });
