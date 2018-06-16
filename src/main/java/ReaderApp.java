@@ -315,7 +315,7 @@ public class ReaderApp {
                 System.out.println("Iteration End: "+ Integer.toString(counter));
                 System.out.println("Sleeping 1 minute");
                 // Sleep 2 minutes. Assumption is sessions are deleted by now.
-                Thread.sleep(1000000*60*2);
+                Thread.sleep(1000*60*2);
 
             }
         } finally {
