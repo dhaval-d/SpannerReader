@@ -134,20 +134,6 @@ public class ReaderApp {
     }
 
 
-    // Open resultSet and confirm a match with key else throw an exception
-    private void processResults(String keyField, ResultSet resultSet) throws Exception {
-        while (resultSet.next()) {
-            String result = resultSet.getString(0);
-            // match found
-            if(result.equals(keyField)){
-                break;
-            } else {
-                throw new Exception();
-            }
-        }
-    }
-
-
     // Perform a read write transaction and throw an exception to roll back after read
     private void performReadWriteTransaction(Tracer tracer,String keyField) throws Exception{
         // Creates a database client
@@ -171,6 +157,20 @@ public class ReaderApp {
                                 throw new Exception();
                             }
                         });
+    }
+
+
+    // Open resultSet and confirm a match with key else throw an exception
+    private void processResults(String keyField, ResultSet resultSet) throws Exception {
+        while (resultSet.next()) {
+            String result = resultSet.getString(0);
+            // match found
+            if(result.equals(keyField)){
+                break;
+            } else {
+                throw new Exception();
+            }
+        }
     }
 
 
