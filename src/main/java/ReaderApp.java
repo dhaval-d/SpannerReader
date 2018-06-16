@@ -95,18 +95,6 @@ public class ReaderApp {
         }
     }
 
-    // Open resultSet and confirm a match with key else throw an exception
-    private void processResults(String keyField, ResultSet resultSet) throws Exception {
-        while (resultSet.next()) {
-            String result = resultSet.getString(0);
-            // match found
-            if(result.equals(keyField)){
-                break;
-            } else {
-                throw new Exception();
-            }
-        }
-    }
 
     // Perform a string read
     private void performStrongRead(Tracer tracer,String keyField)  throws Exception{
@@ -146,23 +134,17 @@ public class ReaderApp {
     }
 
 
-    // create database client
-    private DatabaseClient getDbClient(Tracer tracer) {
-        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
-                options.getProjectId(), instanceId, databaseId));
-        tracer.getCurrentSpan().addAnnotation("Created DbClient");
-        return dbClient;
-    }
-
-
-    // Build Query for Spanner
-    private Statement getQueryStatement(Tracer tracer, String keyField) {
-        Statement statement = Statement
-                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
-                .bind("KEY_FIELD").to(keyField)
-                .build();
-        tracer.getCurrentSpan().addAnnotation("Created Statement");
-        return statement;
+    // Open resultSet and confirm a match with key else throw an exception
+    private void processResults(String keyField, ResultSet resultSet) throws Exception {
+        while (resultSet.next()) {
+            String result = resultSet.getString(0);
+            // match found
+            if(result.equals(keyField)){
+                break;
+            } else {
+                throw new Exception();
+            }
+        }
     }
 
 
@@ -189,6 +171,26 @@ public class ReaderApp {
                                 throw new Exception();
                             }
                         });
+    }
+
+
+    // create database client
+    private DatabaseClient getDbClient(Tracer tracer) {
+        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
+                options.getProjectId(), instanceId, databaseId));
+        tracer.getCurrentSpan().addAnnotation("Created DbClient");
+        return dbClient;
+    }
+
+
+    // Build Query for Spanner
+    private Statement getQueryStatement(Tracer tracer, String keyField) {
+        Statement statement = Statement
+                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
+                .bind("KEY_FIELD").to(keyField)
+                .build();
+        tracer.getCurrentSpan().addAnnotation("Created Statement");
+        return statement;
     }
 
 
