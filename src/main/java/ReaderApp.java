@@ -148,8 +148,6 @@ public class ReaderApp {
                         new TransactionCallable<Void>() {
                             @Override
                             public Void run(TransactionContext transaction) throws Exception {
-                                // Transfer marketing budget from one album to another. We do it in a transaction to
-                                // ensure that the transfer is atomic.
                                 ResultSet resultSet = transaction.executeQuery(statement);
                                 tracer.getCurrentSpan().addAnnotation("Executed Query");
 
@@ -259,7 +257,7 @@ public class ReaderApp {
         String childWorkSpan = getTransactionType(readType);
         try {
             // let's loop max_iterations times with 2 minute sleeps every time inner loop finishes
-            // trying to simulate Ming's issue of session timeout.. I set setKeepAliveIntervalMinutes to 1 minute
+            // trying to simulate customer's issue of session timeout.. I set setKeepAliveIntervalMinutes to 1 minute
             for(int counter=0;counter<max_iterations;counter++){
                 System.out.println("Iteration Start : "+ Integer.toString(counter));
 
