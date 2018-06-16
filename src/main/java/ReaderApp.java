@@ -317,7 +317,7 @@ public class ReaderApp {
                 System.out.println("Iteration End: "+ Integer.toString(counter));
 
                 // don't want to wait after last iteration
-                if(counter < max_iterations){
+                if(counter < max_iterations - 1){
                     // Sleep 2 minutes. Assumption is sessions are deleted by now.
                     System.out.println("Sleeping 2 minutes because Session inactive time is 1 minute.");
                     Thread.sleep(1000*60*2);
