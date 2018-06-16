@@ -69,133 +69,135 @@ public class ReaderApp {
             public void write(int b) {
             }
         }));
-
-
     }
 
+    // Close Spanner service to release all resources
+    private void closeService(){
+            spanner.close();
+    }
 
-    // Next up let's  install the exporter for Stackdriver tracing.
-    public static void main(String... args) throws Exception {
-        if (args.length != 6) {
-            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions>");
-            return;
-        }
-        // Name of your instance & database.
-        instanceId = args[0];
-        databaseId = args[1];
-        String readType = args[2];
-        String directoryPath = args[3];
-        minSessions = Integer.parseInt(args[4]);
-        maxSessions = Integer.parseInt(args[5]);
+    // Perform a stale read with exact staleness of 15 seconds
+    private void performStaleRead(Tracer tracer,String keyField) throws Exception{
+        // Creates a database client
+        DatabaseClient dbClient = getDbClient(tracer);
+        Statement statement = getQueryStatement(tracer, keyField);
 
-        //Read files to get a list of keys
-        ArrayList<String> keys=null;
-        try {
-            keys = readFiles(directoryPath);
-            System.out.println("Keys read: " + Integer.toString(keys.size()));
-        } catch(Exception ex) {
+        // Queries the database
+        try(ResultSet resultSet = dbClient
+                .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
+                .executeQuery(statement)){
+            tracer.getCurrentSpan().addAnnotation("Executed Query");
 
-        }
-
-        // calculation parameters
-        long totalElapsedTime = 0;
-        long totalReadCount = 0;
-        //timer
-        long startTime = 0L;
-        long elapsedTime = 0L;
-
-        ReaderApp rApp= new ReaderApp();
-
-            String childWorkSpan = "";
-            switch(readType) {
-                case "1":
-                    childWorkSpan = "Stale_Read";
-                    break;
-                case "2":
-                    childWorkSpan = "Strong_Read";
-                    break;
-                case "3":
-                    childWorkSpan = "ReadOnly_Transaction";
-                    break;
-                case "4":
-                    childWorkSpan = "ReadWrite_Transaction";
-                    break;
-            }
-        try {
-            //loop through all keys
-            for(String key:keys) {
-                ///Based on user selection, perform reads
-                final Tracer tracer = Tracing.getTracer();
-
-                try (Scope ss = tracer
-                        .spanBuilder(childWorkSpan)
-                        // Enable the trace sampler.
-                        //  We are always sampling for demo purposes only: this is a very high sampling
-                        // rate, but sufficient for the purpose of this quick demo.
-                        // More realistically perhaps tracing 1 in 10,000 might be more useful
-                        .setSampler(Samplers.alwaysSample())
-                        .startScopedSpan()) {
-
-                    if (readType.equals("1")) {   //Stale read
-                        startTime = System.currentTimeMillis();
-                        rApp.performStaleRead(tracer,key);
-                        elapsedTime = System.currentTimeMillis() - startTime;
-                    } else if (readType.equals("2")) {  //strong read
-                        startTime = System.currentTimeMillis();
-                        rApp.performStrongRead(tracer,key);
-                        elapsedTime = System.currentTimeMillis() - startTime;
-
-                    } else if (readType.equals("3")) { //read only transaction
-                        startTime = System.currentTimeMillis();
-                        rApp.performReadOnlyTransaction(tracer,key);
-                        elapsedTime = System.currentTimeMillis() - startTime;
-
-                    } else if (readType.equals("4")) { //read-write transaction
-                        startTime = System.currentTimeMillis();
-                        try{
-                            rApp.performReadWriteTransaction(tracer,key);
-                        } catch(Exception ex){
-
-                        }
-
-                        elapsedTime = System.currentTimeMillis() - startTime;
-                    }
-                }
-                 finally {
-                }
-
-                totalElapsedTime += elapsedTime;
-                totalReadCount += 1;
-
-                if(totalReadCount % 100 == 0 ){
-                    System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
-                    System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
-                    System.out.println("Average Read Time/Op   :"+Float.toString(totalElapsedTime/totalReadCount));
-                }
-            }
+            processResults(keyField, resultSet);
         } finally {
-            // Closes the client which will free up the resources used
-            rApp.closeService();
-
-            // Prints the results
-            System.out.println("\n\n FINAL RESULTS");
-            System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
-            System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
-            System.out.println("Average Read Time/Op   :"+Float.toString(totalElapsedTime/totalReadCount));
+            tracer.getCurrentSpan().addAnnotation("Closed Results");
 
         }
     }
 
-    /*
-    This method reads all 1000 files and returns a list of keys into ArrayList
-     */
-    public static ArrayList<String> readFiles(String directoryPath) {
+    // Open resultSet and confirm a match with key else throw an exception
+    private void processResults(String keyField, ResultSet resultSet) throws Exception {
+        while (resultSet.next()) {
+            String result = resultSet.getString(0);
+            // match found
+            if(result.equals(keyField)){
+                break;
+            } else {
+                throw new Exception();
+            }
+        }
+    }
+
+    // Perform a string read
+    private void performStrongRead(Tracer tracer,String keyField)  throws Exception{
+        // Creates a database client
+        DatabaseClient dbClient = getDbClient(tracer);
+        Statement statement = getQueryStatement(tracer, keyField);
+
+        // Queries the database
+        try(ResultSet resultSet = dbClient.singleUse().executeQuery(statement)){
+            tracer.getCurrentSpan().addAnnotation("Executed Query");
+            processResults(keyField, resultSet);
+        } finally {
+            tracer.getCurrentSpan().addAnnotation("Closed Results");
+        }
+    }
+
+    // Perform a readonly transaction
+    private void performReadOnlyTransaction(Tracer tracer,String keyField) throws Exception{
+        // Creates a database client
+        DatabaseClient dbClient = getDbClient(tracer);
+        Statement statement = getQueryStatement(tracer, keyField);
+
+        // ReadOnlyTransaction must be closed by calling close() on it to release resources held by it.
+        // We use a try-with-resource block to automatically do so.
+        try (ReadOnlyTransaction transaction = dbClient.readOnlyTransaction()) {
+            ResultSet resultSet =
+                    transaction.executeQuery(statement);
+            tracer.getCurrentSpan().addAnnotation("Executed Query");
+
+            processResults(keyField, resultSet);
+            resultSet.close();
+
+        } finally {
+            tracer.getCurrentSpan().addAnnotation("Closed Results");
+        }
+
+    }
+
+
+    // create database client
+    private DatabaseClient getDbClient(Tracer tracer) {
+        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
+                options.getProjectId(), instanceId, databaseId));
+        tracer.getCurrentSpan().addAnnotation("Created DbClient");
+        return dbClient;
+    }
+
+
+    // Build Query for Spanner
+    private Statement getQueryStatement(Tracer tracer, String keyField) {
+        Statement statement = Statement
+                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
+                .bind("KEY_FIELD").to(keyField)
+                .build();
+        tracer.getCurrentSpan().addAnnotation("Created Statement");
+        return statement;
+    }
+
+
+    // Perform a read write transaction and throw an exception to roll back after read
+    private void performReadWriteTransaction(Tracer tracer,String keyField) throws Exception{
+        // Creates a database client
+        DatabaseClient dbClient = getDbClient(tracer);
+        Statement statement = getQueryStatement(tracer, keyField);
+
+        dbClient
+                .readWriteTransaction()
+                .run(
+                        new TransactionCallable<Void>() {
+                            @Override
+                            public Void run(TransactionContext transaction) throws Exception {
+                                // Transfer marketing budget from one album to another. We do it in a transaction to
+                                // ensure that the transfer is atomic.
+                                ResultSet resultSet = transaction.executeQuery(statement);
+                                tracer.getCurrentSpan().addAnnotation("Executed Query");
+
+                                processResults(keyField, resultSet);
+                                resultSet.close();
+                                tracer.getCurrentSpan().addAnnotation("Closed Results");
+                                throw new Exception();
+                            }
+                        });
+    }
+
+
+    //  This method reads all 1000 files and returns a list of keys into ArrayList
+    private static ArrayList<String> readFiles(String directoryPath) {
         ArrayList<String> results=new ArrayList<String>();
 
         File files = new File(directoryPath);
         String[] strFiles = files.list();
-
-
 
         for (int counter=0; counter < strFiles.length && counter < 10; counter++) {
             try {
@@ -214,151 +216,129 @@ public class ReaderApp {
         return results;
     }
 
-    // Close Spanner service to release all resources
-    private void closeService(){
-            spanner.close();
-    }
+    // main
+    public static void main(String... args) throws Exception {
+        if (args.length != 6) {
+            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions>");
+            return;
+        }
+        // Name of your instance & database.
+        instanceId = args[0];
+        databaseId = args[1];
+        // type of read
+        String readType = args[2];
+        // location of files where your keys exist
+        String directoryPath = args[3];
+        // PoolSession min and max count
+        minSessions = Integer.parseInt(args[4]);
+        maxSessions = Integer.parseInt(args[5]);
 
-    // Perform a stale read with exact staleness of 15 seconds
-    private void performStaleRead(Tracer tracer,String keyField) throws Exception{
-        // Creates a database client
-        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
-                options.getProjectId(), instanceId, databaseId));
-
-        tracer.getCurrentSpan().addAnnotation("Created DbClient");
-
-        Statement statement = Statement
-                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
-                .bind("KEY_FIELD").to(keyField)
-                .build();
-        tracer.getCurrentSpan().addAnnotation("Created Statement");
-
-        // Queries the database
-        try(ResultSet resultSet = dbClient
-                .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
-                .executeQuery(statement)){
-            tracer.getCurrentSpan().addAnnotation("Executed Query");
-
-            while (resultSet.next()) {
-                String result = resultSet.getString(0);
-                // match found
-                if(result.equals(keyField)){
-                    break;
-                } else {
-                    throw new Exception();
-                }
-            }
-        } finally {
-            tracer.getCurrentSpan().addAnnotation("Closed Results");
+        //Read files to get a list of keys
+        ArrayList<String> keys=null;
+        try {
+            keys = readFiles(directoryPath);
+            System.out.println("Keys read: " + Integer.toString(keys.size()));
+        } catch(Exception ex) {
 
         }
-    }
 
-    // Perform a string read
-    private void performStrongRead(Tracer tracer,String keyField)  throws Exception{
-        // Creates a database client
-        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
-                options.getProjectId(), instanceId, databaseId));
-        tracer.getCurrentSpan().addAnnotation("Created DbClient");
+        // total duration and count
+        long totalElapsedTime = 0;
+        long totalReadCount = 0;
+        //timer
+        long startTime = 0L;
+        long elapsedTime = 0L;
 
-        Statement statement = Statement
-                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
-                .bind("KEY_FIELD").to(keyField)
-                .build();
-        tracer.getCurrentSpan().addAnnotation("Created Statement");
+        ReaderApp rApp= new ReaderApp();
 
-        // Queries the database
-        try(ResultSet resultSet = dbClient.singleUse().executeQuery(statement)){
-            tracer.getCurrentSpan().addAnnotation("Executed Query");
-            while (resultSet.next()) {
-                String result = resultSet.getString(0);
-                // match found
-                if(result.equals(keyField)){
-                    break;
-                } else {
-                    throw new Exception();
-                }
-            }
-        } finally {
-            tracer.getCurrentSpan().addAnnotation("Closed Results");
-        }
-    }
+        String childWorkSpan = getTransactionType(readType);
+        try {
+            //loop through all keys
+            for(String key:keys) {
+                ///Based on user selection, perform reads
+                final Tracer tracer = Tracing.getTracer();
 
-    // Perform a readonly transaction
-    private void performReadOnlyTransaction(Tracer tracer,String keyField) throws Exception{
-        // Creates a database client
-        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
-                options.getProjectId(), instanceId, databaseId));
-        tracer.getCurrentSpan().addAnnotation("Created DbClient");
+                try (Scope ss = tracer
+                        .spanBuilder(childWorkSpan)
+                        // Enable the trace sampler.
+                        // We are always sampling for demo purposes only: this is a very high sampling
+                        // rate, but sufficient for the purpose of this quick demo.
+                        // More realistically perhaps tracing 1 in 10,000 might be more useful
+                        .setSampler(Samplers.alwaysSample())
+                        .startScopedSpan()) {
 
-        Statement statement = Statement
-                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
-                .bind("KEY_FIELD").to(keyField)
-                .build();
-        tracer.getCurrentSpan().addAnnotation("Created Statement");
-
-        // ReadOnlyTransaction must be closed by calling close() on it to release resources held by it.
-        // We use a try-with-resource block to automatically do so.
-        try (ReadOnlyTransaction transaction = dbClient.readOnlyTransaction()) {
-            ResultSet resultSet =
-                    transaction.executeQuery(statement);
-            tracer.getCurrentSpan().addAnnotation("Executed Query");
-
-            while (resultSet.next()) {
-                String result = resultSet.getString(0);
-                // match found
-                if(result.equals(keyField)){
-                    break;
-                } else {
-                    throw new Exception();
-                }
-            }
-            resultSet.close();
-
-        } finally {
-            tracer.getCurrentSpan().addAnnotation("Closed Results");
-        }
-
-    }
-
-    // Perform a read write transaction and throw an exception to roll back after read
-    private void performReadWriteTransaction(Tracer tracer,String keyField) throws Exception{
-        // Creates a database client
-        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
-                options.getProjectId(), instanceId, databaseId));
-        tracer.getCurrentSpan().addAnnotation("Created DbClient");
-
-        Statement statement = Statement
-                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
-                .bind("KEY_FIELD").to(keyField)
-                .build();
-        tracer.getCurrentSpan().addAnnotation("Created Statement");
-
-        dbClient
-                .readWriteTransaction()
-                .run(
-                        new TransactionCallable<Void>() {
-                            @Override
-                            public Void run(TransactionContext transaction) throws Exception {
-                                // Transfer marketing budget from one album to another. We do it in a transaction to
-                                // ensure that the transfer is atomic.
-                                ResultSet resultSet = transaction.executeQuery(statement);
-                                tracer.getCurrentSpan().addAnnotation("Executed Query");
-
-                                while (resultSet.next()) {
-                                    String result = resultSet.getString(0);
-                                    // match found
-                                    if(result.equals(keyField)){
-                                        break;
-                                    } else {
-                                        throw new Exception();
-                                    }
-                                }
-                                resultSet.close();
-                                tracer.getCurrentSpan().addAnnotation("Closed Results");
-                                throw new Exception();
+                    // start timer
+                    startTime = System.currentTimeMillis();
+                    //execute based on readType selected by user
+                    switch(readType) {
+                        case "1":
+                            rApp.performStaleRead(tracer,key);
+                            break;
+                        case "2":
+                            rApp.performStrongRead(tracer,key);
+                            break;
+                        case "3":
+                            rApp.performReadOnlyTransaction(tracer,key);
+                            break;
+                        case "4":
+                            // try-catch needed because I am rolling back txn by throwing exception
+                            try{
+                                rApp.performReadWriteTransaction(tracer,key);
+                            } catch(Exception ex){
                             }
-                        });
+                            break;
+                    }
+                    // end timer
+                    elapsedTime = System.currentTimeMillis() - startTime;
+                }
+                finally {
+                }
+
+                // update running total
+                totalElapsedTime += elapsedTime;
+                totalReadCount += 1;
+
+                if(totalReadCount % 1000 == 0 ){
+                    printStatus(totalElapsedTime, totalReadCount);
+                }
+            }
+        } finally {
+            // Closes the client which will free up the resources used
+            rApp.closeService();
+
+            // Prints the results
+            System.out.println("\n\n FINAL RESULTS");
+            printStatus(totalElapsedTime, totalReadCount);
+
+        }
     }
+
+    // type of transaction we are running
+    private static String getTransactionType(String readType) {
+        String childWorkSpan="";
+        switch(readType) {
+            case "1":
+                childWorkSpan = "Stale_Read";
+                break;
+            case "2":
+                childWorkSpan = "Strong_Read";
+                break;
+            case "3":
+                childWorkSpan = "ReadOnly_Transaction";
+                break;
+            case "4":
+                childWorkSpan = "ReadWrite_Transaction";
+                break;
+        }
+        return childWorkSpan;
+    }
+
+    // Prints status of the process
+    private static void printStatus(long totalElapsedTime, long totalReadCount) {
+        System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
+        System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
+        System.out.println("Average Read Time/Op   :"+Float.toString(totalElapsedTime/totalReadCount));
+    }
+
 
 }
