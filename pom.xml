@@ -21,26 +21,10 @@
     </plugins>
 </build>
     <properties>
-        <spannerVersion>0.50.0-beta</spannerVersion>
+        <spannerVersion>0.43.0-beta</spannerVersion>
         <opencensusVersion>0.13.2</opencensusVersion>
     </properties>
     <dependencies>
-        <dependency>
-            <groupId>com.google.cloud</groupId>
-            <artifactId>google-cloud-spanner</artifactId>
-            <version>${spannerVersion}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.google.guava</groupId>
-                    <artifactId>guava-jdk5</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.opencensus</groupId>
-                    <artifactId>opencensus-api</artifactId>
-                </exclusion>
-
-            </exclusions>
-        </dependency>
 
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -80,6 +64,22 @@
             <scope>runtime</scope>
         </dependency>
 
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-spanner</artifactId>
+            <version>${spannerVersion}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava-jdk5</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.opencensus</groupId>
+                    <artifactId>opencensus-api</artifactId>
+                </exclusion>
+
+            </exclusions>
+        </dependency>
 
     </dependencies>
 </project>
