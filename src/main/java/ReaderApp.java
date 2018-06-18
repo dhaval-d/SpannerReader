@@ -80,7 +80,7 @@ public class ReaderApp {
                         .setMaxSessions(maxSessions)
                         .setKeepAliveIntervalMinutes(1)
                         .setBlockIfPoolExhausted()
-                        .setWriteSessionsFraction(0.00001f)
+                        .setWriteSessionsFraction(0.8f)
                         .setMaxIdleSessions(maxSessions)
                         .build())
                 .build();
