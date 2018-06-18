@@ -32,7 +32,9 @@ import java.io.BufferedReader;
 import io.opencensus.common.Scope;
 import io.opencensus.contrib.grpc.metrics.RpcViews;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
-import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
+//import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
 import io.opencensus.trace.Tracing;
 import io.opencensus.trace.samplers.Samplers;
 import io.opencensus.trace.Tracer;
@@ -59,14 +61,17 @@ public class ReaderApp {
 
     public ReaderApp() throws Exception{
         // Next up let's  install the exporter for Stackdriver tracing.
-        StackdriverExporter.createAndRegister();
+       // StackdriverExporter.createAndRegister();
+        StackdriverTraceExporter.createAndRegister(
+                StackdriverTraceConfiguration.builder().build());
         Tracing.getExportComponent().getSampledSpanStore().registerSpanNamesForCollection(
                 Arrays.asList(parentSpanName));
 
 
         // Then the exporter for Stackdriver monitoring/metrics.
         StackdriverStatsExporter.createAndRegister();
-        RpcViews.registerAllCumulativeViews();
+        //RpcViews.registerAllCumulativeViews();
+        RpcViews.registerAllGrpcViews();
 
         // Instantiates a client
         options = SpannerOptions.newBuilder()

@@ -20,11 +20,15 @@
         </plugin>
     </plugins>
 </build>
+    <properties>
+        <spannerVersion>0.50.0-beta</spannerVersion>
+        <opencensusVersion>0.13.2</opencensusVersion>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>com.google.cloud</groupId>
             <artifactId>google-cloud-spanner</artifactId>
-            <version>0.33.0-beta</version>
+            <version>${spannerVersion}</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.google.guava</groupId>
@@ -34,6 +38,7 @@
                     <groupId>io.opencensus</groupId>
                     <artifactId>opencensus-api</artifactId>
                 </exclusion>
+
             </exclusions>
         </dependency>
 
@@ -46,32 +51,32 @@
         <dependency>
             <groupId>io.opencensus</groupId>
             <artifactId>opencensus-api</artifactId>
-            <version>0.11.0</version>
+            <version>${opencensusVersion}</version>
         </dependency>
 
         <dependency>
             <groupId>io.opencensus</groupId>
             <artifactId>opencensus-exporter-stats-stackdriver</artifactId>
-            <version>0.11.0</version>
+            <version>${opencensusVersion}</version>
         </dependency>
 
         <dependency>
             <groupId>io.opencensus</groupId>
             <artifactId>opencensus-exporter-trace-stackdriver</artifactId>
-            <version>0.11.0</version>
+            <version>${opencensusVersion}</version>
         </dependency>
 
         <dependency>
             <groupId>io.opencensus</groupId>
             <artifactId>opencensus-contrib-grpc-metrics</artifactId>
-            <version>0.11.0</version>
+            <version>${opencensusVersion}</version>
         </dependency>
 
 
         <dependency>
             <groupId>io.opencensus</groupId>
             <artifactId>opencensus-impl</artifactId>
-            <version>0.11.0</version>
+            <version>${opencensusVersion}</version>
             <scope>runtime</scope>
         </dependency>
 
