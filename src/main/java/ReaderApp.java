@@ -95,7 +95,7 @@ public class ReaderApp {
         // PoolSession min and max count
         minSessions = Integer.parseInt(args[4]);
         maxSessions = Integer.parseInt(args[5]);
-        int max_iterations = Integer.parseInt(args[6]);
+        int max_threads = Integer.parseInt(args[6]);
 
         //Read files to get a list of keys
         ArrayList<String> keys=null;
@@ -142,7 +142,7 @@ public class ReaderApp {
                 //execute based on readType selected by user
                 switch(readType) {
                     case "1":
-                        for (int i = 0; i < 1000; i++) {
+                        for (int i = 0; i < max_threads; i++) {
 
                                 //singleton dbClient
                                 StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
@@ -176,7 +176,7 @@ public class ReaderApp {
                 // print feedback every 1000 reads
                 if(totalReadCount % 100 == 0 ){
                     System.out.println("results");
-                    printStatus(totalElapsedTime, totalReadCount);
+                    printStatus(totalElapsedTime, totalReadCount,max_threads);
 
                 }
             }
@@ -189,7 +189,7 @@ public class ReaderApp {
 
             // Prints the results
             System.out.println("\n\n FINAL RESULTS");
-            printStatus(totalElapsedTime, totalReadCount);
+            printStatus(totalElapsedTime, totalReadCount,max_threads);
         }
     }
 
@@ -230,10 +230,10 @@ public class ReaderApp {
     }
 
     // Prints status of the process
-    private static void printStatus(long totalElapsedTime, long totalReadCount) {
+    private static void printStatus(long totalElapsedTime, long totalReadCount,int max_threads) {
         System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
         System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
         if(totalReadCount!=0)
-            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount*1000)));
+            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount*max_threads)));
     }
 }
