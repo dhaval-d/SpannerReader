@@ -61,6 +61,8 @@ public class StaleRead implements Callable<Long>  {
 
         this.spanner = spanner;
         this.options = options;
+        dbClient = createDbClient();
+
 
     }
 
@@ -72,7 +74,7 @@ public class StaleRead implements Callable<Long>  {
             performStaleRead();
 
         } catch(Exception ex) {
-                System.out.println(ex.getMessage());
+                System.out.println(ex.getMessage()+" - Inside Call()");
         }
         return System.currentTimeMillis() -start_time;
     }
@@ -98,10 +100,10 @@ public class StaleRead implements Callable<Long>  {
 
     // create database client
     private DatabaseClient createDbClient() {
-        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
+        DatabaseClient client = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), "instance-1", "db1"));
         tracer.getCurrentSpan().addAnnotation("Created DbClient");
-        return dbClient;
+        return client;
     }
 
 
