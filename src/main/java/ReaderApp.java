@@ -82,7 +82,7 @@ public class ReaderApp {
     // main
     public static void main(String... args) throws Exception {
         if (args.length != 7) {
-            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions> <max_iterations>");
+            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions> <thread_count>");
             return;
         }
         // Name of your instance & database.
