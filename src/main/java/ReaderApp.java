@@ -143,9 +143,9 @@ public class ReaderApp {
                                     .startScopedSpan()) {
 
                                 //singleton dbClient
-                                //StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
+                                StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
                                 //instantiate new dbclient
-                                StaleRead task = new StaleRead(tracer,key,utility.getService(),utility.getOptions(),i);
+                               // StaleRead task = new StaleRead(tracer,key,utility.getService(),utility.getOptions(),i);
 
                                 //executor.execute(task);
 
