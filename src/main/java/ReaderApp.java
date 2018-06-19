@@ -147,7 +147,7 @@ public class ReaderApp {
                                 Future<Long> elapsed = executor.submit(task);
                                 totalElapsedTime += elapsed.get();
                             }
-                            executor.wait();
+                    //        executor.wait();
                             executor.shutdown();
 
                             break;
