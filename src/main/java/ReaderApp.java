@@ -116,6 +116,9 @@ public class ReaderApp {
 
         SpannerUtility utility = SpannerUtility.getInstance(minSessions,maxSessions,instanceId,databaseId);
 
+        int threadPoolSize = Runtime.getRuntime().availableProcessors() + 1;
+        System.out.println("Number of processors avail : "+Integer.toString(threadPoolSize));
+
         String childWorkSpan = getTransactionType(readType);
         try {
            //loop through all keys
@@ -126,8 +129,8 @@ public class ReaderApp {
                 //Use the executor created by the newCachedThreadPool() method
                 //only when you have a reasonable number of threads
                 //or when they have a short duration.
-                System.out.println("Number of processors avail : "+Integer.toString(Runtime.getRuntime().availableProcessors() + 1));
-                ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1);
+
+                ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threadPoolSize);
 
                 //execute based on readType selected by user
                 switch(readType) {
@@ -213,6 +216,6 @@ public class ReaderApp {
         System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
         System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
         if(totalReadCount!=0)
-            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/(float)totalReadCount));
+            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount)*100));
     }
 }
