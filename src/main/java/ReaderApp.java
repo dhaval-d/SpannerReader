@@ -60,7 +60,7 @@ public class ReaderApp {
         File files = new File(directoryPath);
         String[] strFiles = files.list();
 
-        for (int counter=0; counter < strFiles.length && counter < 10; counter++) {
+        for (int counter=0; counter < strFiles.length && counter < 1; counter++) {
             try {
                 File file = new File(directoryPath+"/"+ strFiles[counter]);
                 FileReader fileReader = new FileReader(file);
@@ -179,9 +179,10 @@ public class ReaderApp {
                 totalReadCount += 1;
 
                 // print feedback every 1000 reads
-                if(totalReadCount % 10 == 0 ){
+                if(totalReadCount % 100 == 0 ){
+                    System.out.println("results");
                     printStatus(totalElapsedTime, totalReadCount);
-                    break;
+
                 }
             }
 
@@ -221,6 +222,7 @@ public class ReaderApp {
     private static void printStatus(long totalElapsedTime, long totalReadCount) {
         System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
         System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
-        System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/(float)totalReadCount));
+        if(totalReadCount!=0)
+            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/(float)totalReadCount));
     }
 }
