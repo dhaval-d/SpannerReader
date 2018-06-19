@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.BufferedReader;
 
 
+import com.google.cloud.spanner.*;
 import io.opencensus.common.Scope;
 //import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
 import io.opencensus.trace.Tracing;
@@ -37,6 +38,7 @@ import java.io.OutputStream;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 
 public class ReaderApp {
@@ -116,6 +118,11 @@ public class ReaderApp {
 
         SpannerUtility utility = SpannerUtility.getInstance(minSessions,maxSessions,instanceId,databaseId);
 
+        //warmupSessions
+        System.out.println("Running warm up sessions code");
+        warmupSessions(minSessions,utility.getDbClient());
+        System.out.println("Ended warm up sessions code");
+
         int threadPoolSize = Runtime.getRuntime().availableProcessors() + 1;
         System.out.println("Number of processors avail : "+Integer.toString(threadPoolSize));
 
@@ -183,6 +190,22 @@ public class ReaderApp {
             // Prints the results
             System.out.println("\n\n FINAL RESULTS");
             printStatus(totalElapsedTime, totalReadCount);
+        }
+    }
+
+    // this code runs through minimum sessions to warm up session pool
+    private static void warmupSessions(int minSessions, DatabaseClient dbClient){
+        Statement statement = Statement
+                .newBuilder("SELECT 1")
+                .build();
+
+        for(int counter =0;counter < minSessions; counter++){
+            // Queries the database
+            try(ResultSet resultSet = dbClient
+                    .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
+                    .executeQuery(statement)){
+            } finally {
+            }
         }
     }
 
