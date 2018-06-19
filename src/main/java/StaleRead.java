@@ -72,7 +72,7 @@ public class StaleRead implements Callable<Long>  {
             performStaleRead();
 
         } catch(Exception ex) {
-
+                System.out.println(ex.getMessage());
         }
         return System.currentTimeMillis() -start_time;
     }
@@ -86,11 +86,10 @@ public class StaleRead implements Callable<Long>  {
         try(ResultSet resultSet = dbClient
                 .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
                 .executeQuery(statement)){
-            //  tracer.getCurrentSpan().addAnnotation("Executed Query");
-
+            tracer.getCurrentSpan().addAnnotation("Executed Query");
             processResults(keyField, resultSet);
         } finally {
-            //  tracer.getCurrentSpan().addAnnotation("Closed Results");
+            tracer.getCurrentSpan().addAnnotation("Closed Results");
         }
 
 
@@ -101,7 +100,7 @@ public class StaleRead implements Callable<Long>  {
     private DatabaseClient createDbClient() {
         DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
                 options.getProjectId(), "instance-1", "db1"));
-        //tracer.getCurrentSpan().addAnnotation("Created DbClient");
+        tracer.getCurrentSpan().addAnnotation("Created DbClient");
         return dbClient;
     }
 
@@ -114,7 +113,7 @@ public class StaleRead implements Callable<Long>  {
             if(result.equals(keyField)){
                 break;
             } else {
-                throw new Exception();
+                throw new Exception("Records did not match");
             }
         }
     }
@@ -125,7 +124,7 @@ public class StaleRead implements Callable<Long>  {
                 .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
                 .bind("KEY_FIELD").to(keyField)
                 .build();
-        // tracer.getCurrentSpan().addAnnotation("Created Statement");
+        tracer.getCurrentSpan().addAnnotation("Created Statement");
         return statement;
     }
 
