@@ -123,24 +123,25 @@ public class ReaderApp {
                 ///Based on user selection, perform reads
                 final Tracer tracer = Tracing.getTracer();
 
-                try (Scope ss = tracer
-                        .spanBuilder(childWorkSpan)
-                        // Enable the trace sampler.
-                        // We are always sampling for demo purposes only: this is a very high sampling
-                        // rate, but sufficient for the purpose of this quick demo.
-                        // More realistically perhaps tracing 1 in 10,000 might be more useful
-                        .setSampler(Samplers.alwaysSample())
-                        .startScopedSpan()) {
+                //Use the executor created by the newCachedThreadPool() method
+                //only when you have a reasonable number of threads
+                //or when they have a short duration.
+                ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
 
-                    //Use the executor created by the newCachedThreadPool() method
-                    //only when you have a reasonable number of threads
-                    //or when they have a short duration.
-                    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
+                //execute based on readType selected by user
+                switch(readType) {
+                    case "1":
+                        for (int i = 0; i <= 10; i++) {
 
-                    //execute based on readType selected by user
-                    switch(readType) {
-                        case "1":
-                            for (int i = 0; i <= 10; i++) {
+                            try (Scope ss = tracer
+                                    .spanBuilder(childWorkSpan +" - " + Integer.toString(i))
+                                    // Enable the trace sampler.
+                                    // We are always sampling for demo purposes only: this is a very high sampling
+                                    // rate, but sufficient for the purpose of this quick demo.
+                                    // More realistically perhaps tracing 1 in 10,000 might be more useful
+                                    .setSampler(Samplers.alwaysSample())
+                                    .startScopedSpan()) {
+
                                 //singleton dbClient
                                 //StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
                                 //instantiate new dbclient
@@ -150,34 +151,36 @@ public class ReaderApp {
 
                                 Future<Long> elapsed = executor.submit(task);
                                 totalElapsedTime += elapsed.get();
+
+
                             }
-                    //        executor.wait();
+                            finally {
+                            }
+
+                        }
+                        //        executor.wait();
+                        executor.shutdown();
+
+                        break;
+                    case "2":
+
+                        break;
+                    case "3":
+
+                        break;
+                    case "4":
+                        // try-catch needed because I am rolling back txn by throwing exception
+                        try{
+                            for (int i = 0; i <= 10; i++)
+                            {
+                                //  StaleRead task = new StaleRead(tracer,key, utility.getDbClient());
+                                //  executor.execute(task);
+                            }
                             executor.shutdown();
 
-                            break;
-                        case "2":
-
-                            break;
-                        case "3":
-
-                            break;
-                        case "4":
-                            // try-catch needed because I am rolling back txn by throwing exception
-                            try{
-                                for (int i = 0; i <= 10; i++)
-                                {
-                                  //  StaleRead task = new StaleRead(tracer,key, utility.getDbClient());
-                                  //  executor.execute(task);
-                                }
-                                executor.shutdown();
-
-                            } catch(Exception ex){
-                            }
-                            break;
-                    }
-
-                }
-                finally {
+                        } catch(Exception ex){
+                        }
+                        break;
                 }
 
                 totalReadCount += 1;
