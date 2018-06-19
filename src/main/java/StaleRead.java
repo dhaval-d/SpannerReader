@@ -82,20 +82,28 @@ public class StaleRead implements Callable<Long>  {
     // Perform a stale read with exact staleness of 15 seconds
     protected void performStaleRead() throws Exception{
 
+        try (Scope ss = tracer
+                .spanBuilder("Stale_read" +" - " + Integer.toString(this.taskId))
+                // Enable the trace sampler.
+                // We are always sampling for demo purposes only: this is a very high sampling
+                // rate, but sufficient for the purpose of this quick demo.
+                // More realistically perhaps tracing 1 in 10,000 might be more useful
+                .setSampler(Samplers.alwaysSample())
+                .startScopedSpan()) {
+            Statement statement = getQueryStatement(keyField);
+            // Queries the database
+            try(ResultSet resultSet = dbClient
+                    .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
+                    .executeQuery(statement)){
+                tracer.getCurrentSpan().addAnnotation("Executed Query");
+                processResults(keyField, resultSet);
+            } finally {
+                tracer.getCurrentSpan().addAnnotation("Closed Results");
+            }
 
-        Statement statement = getQueryStatement(keyField);
-     // Queries the database
-        try(ResultSet resultSet = dbClient
-                .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
-                .executeQuery(statement)){
-            tracer.getCurrentSpan().addAnnotation("Executed Query");
-            processResults(keyField, resultSet);
-        } finally {
-            tracer.getCurrentSpan().addAnnotation("Closed Results");
         }
-
-
-
+        finally {
+        }
     }
 
     // create database client

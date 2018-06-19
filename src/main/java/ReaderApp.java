@@ -133,15 +133,6 @@ public class ReaderApp {
                     case "1":
                         for (int i = 0; i < 1; i++) {
 
-                            try (Scope ss = tracer
-                                    .spanBuilder(childWorkSpan +" - " + Integer.toString(i))
-                                    // Enable the trace sampler.
-                                    // We are always sampling for demo purposes only: this is a very high sampling
-                                    // rate, but sufficient for the purpose of this quick demo.
-                                    // More realistically perhaps tracing 1 in 10,000 might be more useful
-                                    .setSampler(Samplers.alwaysSample())
-                                    .startScopedSpan()) {
-
                                 //singleton dbClient
                                 StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
                                 //instantiate new dbclient
@@ -153,9 +144,6 @@ public class ReaderApp {
                                 totalElapsedTime += elapsed.get();
 
 
-                            }
-                            finally {
-                            }
 
                         }
                         //        executor.wait();
