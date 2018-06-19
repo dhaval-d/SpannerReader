@@ -17,7 +17,7 @@
 // Imports the Google Cloud client library
 import com.google.cloud.spanner.*;
 
-import com.sun.tools.corba.se.idl.ExceptionEntry;
+//import com.sun.tools.corba.se.idl.ExceptionEntry;
 import io.opencensus.common.Scope;
 import io.opencensus.contrib.grpc.metrics.RpcViews;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
