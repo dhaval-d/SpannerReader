@@ -131,7 +131,7 @@ public class ReaderApp {
                 //execute based on readType selected by user
                 switch(readType) {
                     case "1":
-                        for (int i = 0; i <= 10; i++) {
+                        for (int i = 0; i < 1; i++) {
 
                             try (Scope ss = tracer
                                     .spanBuilder(childWorkSpan +" - " + Integer.toString(i))
