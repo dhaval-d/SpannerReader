@@ -60,7 +60,7 @@ public class ReaderApp {
         File files = new File(directoryPath);
         String[] strFiles = files.list();
 
-        for (int counter=0; counter < strFiles.length && counter < 1; counter++) {
+        for (int counter=0; counter < strFiles.length && counter < 10; counter++) {
             try {
                 File file = new File(directoryPath+"/"+ strFiles[counter]);
                 FileReader fileReader = new FileReader(file);
@@ -135,7 +135,7 @@ public class ReaderApp {
                 //execute based on readType selected by user
                 switch(readType) {
                     case "1":
-                        for (int i = 0; i < 100; i++) {
+                        for (int i = 0; i < 1000; i++) {
 
                                 //singleton dbClient
                                 StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
@@ -157,12 +157,7 @@ public class ReaderApp {
                     case "4":
                         // try-catch needed because I am rolling back txn by throwing exception
                         try{
-                            for (int i = 0; i <= 10; i++)
-                            {
-                                //  StaleRead task = new StaleRead(tracer,key, utility.getDbClient());
-                                //  executor.execute(task);
-                            }
-                            executor.shutdown();
+
 
                         } catch(Exception ex){
                         }
@@ -216,6 +211,6 @@ public class ReaderApp {
         System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
         System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
         if(totalReadCount!=0)
-            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount*100)));
+            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount*1000)));
     }
 }
