@@ -126,7 +126,8 @@ public class ReaderApp {
                 //Use the executor created by the newCachedThreadPool() method
                 //only when you have a reasonable number of threads
                 //or when they have a short duration.
-                ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
+                System.out.println("Number of processors avail : "+Integer.toString(Runtime.getRuntime().availableProcessors() + 1));
+                ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1);
 
                 //execute based on readType selected by user
                 switch(readType) {
@@ -137,14 +138,8 @@ public class ReaderApp {
                                 StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
                                 //instantiate new dbclient
                                // StaleRead task = new StaleRead(tracer,key,utility.getService(),utility.getOptions(),i);
-
-                                //executor.execute(task);
-
                                 Future<Long> elapsed = executor.submit(task);
                                 totalElapsedTime += elapsed.get();
-
-
-
                         }
                         //        executor.wait();
                         executor.shutdown();
