@@ -141,7 +141,11 @@ public class ReaderApp {
                     switch(readType) {
                         case "1":
                             for (int i = 0; i <= 10; i++) {
-                                StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
+                                //singleton dbClient
+                                //StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
+                                //instantiate new dbclient
+                                StaleRead task = new StaleRead(tracer,key,utility.getService(),utility.getOptions(),i);
+
                                 //executor.execute(task);
 
                                 Future<Long> elapsed = executor.submit(task);

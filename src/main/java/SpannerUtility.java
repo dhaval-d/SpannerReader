@@ -101,6 +101,10 @@ public class SpannerUtility {
         return single_instance;
     }
 
+    public Spanner getService(){return spanner;}
+
+    public SpannerOptions getOptions(){return options;}
+
 
     public DatabaseClient getDbClient() {
         return dbClient;

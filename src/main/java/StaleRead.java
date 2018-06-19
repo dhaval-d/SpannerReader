@@ -44,12 +44,24 @@ public class StaleRead implements Callable<Long>  {
     private String keyField;
     private DatabaseClient dbClient;
     private int taskId;
+    private Spanner spanner;
+    private SpannerOptions options;
 
     public StaleRead(Tracer tracer, String keyField, DatabaseClient dbClient, int taskId){
         this.tracer = tracer;
         this.keyField = keyField;
         this.dbClient = dbClient;
         this.taskId = taskId;
+    }
+
+    public StaleRead(Tracer tracer, String keyField, Spanner spanner,SpannerOptions options, int taskId){
+        this.tracer = tracer;
+        this.keyField = keyField;
+        this.taskId = taskId;
+
+        this.spanner = spanner;
+        this.options = options;
+
     }
 
     @Override
@@ -84,6 +96,15 @@ public class StaleRead implements Callable<Long>  {
 
 
     }
+
+    // create database client
+    private DatabaseClient createDbClient() {
+        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
+                options.getProjectId(), "instance-1", "db1"));
+        //tracer.getCurrentSpan().addAnnotation("Created DbClient");
+        return dbClient;
+    }
+
 
     // Open resultSet and confirm a match with key else throw an exception
     private void processResults(String keyField, ResultSet resultSet) throws Exception {
