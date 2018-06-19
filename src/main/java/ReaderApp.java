@@ -216,6 +216,6 @@ public class ReaderApp {
         System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
         System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
         if(totalReadCount!=0)
-            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount)*100));
+            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount*100)));
     }
 }
