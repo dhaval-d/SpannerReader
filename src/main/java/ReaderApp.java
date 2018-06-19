@@ -15,11 +15,6 @@
  */
 
 // Imports the Google Cloud client library
-import com.google.cloud.spanner.*;
-
-import java.util.concurrent.TimeUnit;
-
-import static com.google.cloud.spanner.TransactionRunner.TransactionCallable;
 
 import java.util.ArrayList;
 
@@ -30,23 +25,21 @@ import java.io.BufferedReader;
 
 
 import io.opencensus.common.Scope;
-import io.opencensus.contrib.grpc.metrics.RpcViews;
-import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
 //import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
-import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
-import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
 import io.opencensus.trace.Tracing;
 import io.opencensus.trace.samplers.Samplers;
 import io.opencensus.trace.Tracer;
 
-import java.util.Arrays;
 import java.io.PrintStream;
 import java.io.OutputStream;
 
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Future;
+
 
 public class ReaderApp {
-
     // Name of your instance & database.
     private static String instanceId = "";
     private static String databaseId = "";
@@ -55,164 +48,10 @@ public class ReaderApp {
     private static int minSessions = 0;
     private static int maxSessions = 0;
 
-    private SpannerOptions options;
-    private Spanner spanner;
 
-
-    public ReaderApp() throws Exception{
-        // Next up let's  install the exporter for Stackdriver tracing.
-       // StackdriverExporter.createAndRegister();
-        StackdriverTraceExporter.createAndRegister(
-                StackdriverTraceConfiguration.builder().build());
-        Tracing.getExportComponent().getSampledSpanStore().registerSpanNamesForCollection(
-                Arrays.asList(parentSpanName));
-
-
-        // Then the exporter for Stackdriver monitoring/metrics.
-        StackdriverStatsExporter.createAndRegister();
-        //RpcViews.registerAllCumulativeViews();
-        RpcViews.registerAllGrpcViews();
-
-        // Instantiates a client
-        options = SpannerOptions.newBuilder()
-                .setSessionPoolOption(SessionPoolOptions.newBuilder()
-                        .setMinSessions(minSessions)
-                        .setMaxSessions(maxSessions)
-                        .setKeepAliveIntervalMinutes(1)
-                        .setBlockIfPoolExhausted()
-                        .setWriteSessionsFraction(0.8f)
-                        .setMaxIdleSessions(maxSessions)
-                        .build())
-                .build();
-
-        spanner = options.getService();
-        // Avoid printing spanner warning messages
-        System.setErr(new PrintStream(new OutputStream() {
-            public void write(int b) {
-            }
-        }));
-    }
-
-    // Close Spanner service to release all resources
-    private void closeService(){
-            spanner.close();
-    }
-
-    // Perform a stale read with exact staleness of 15 seconds
-    private void performStaleRead(Tracer tracer,String keyField) throws Exception{
-        // Creates a database client
-        DatabaseClient dbClient = getDbClient(tracer);
-        Statement statement = getQueryStatement(tracer, keyField);
-
-        // Queries the database
-        try(ResultSet resultSet = dbClient
-                .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
-                .executeQuery(statement)){
-            tracer.getCurrentSpan().addAnnotation("Executed Query");
-
-            processResults(keyField, resultSet);
-        } finally {
-            tracer.getCurrentSpan().addAnnotation("Closed Results");
-
-        }
-    }
-
-
-    // Perform a string read
-    private void performStrongRead(Tracer tracer,String keyField)  throws Exception{
-        // Creates a database client
-        DatabaseClient dbClient = getDbClient(tracer);
-        Statement statement = getQueryStatement(tracer, keyField);
-
-        // Queries the database
-        try(ResultSet resultSet = dbClient.singleUse().executeQuery(statement)){
-            tracer.getCurrentSpan().addAnnotation("Executed Query");
-            processResults(keyField, resultSet);
-        } finally {
-            tracer.getCurrentSpan().addAnnotation("Closed Results");
-        }
-    }
-
-    // Perform a readonly transaction
-    private void performReadOnlyTransaction(Tracer tracer,String keyField) throws Exception{
-        // Creates a database client
-        DatabaseClient dbClient = getDbClient(tracer);
-        Statement statement = getQueryStatement(tracer, keyField);
-
-        // ReadOnlyTransaction must be closed by calling close() on it to release resources held by it.
-        // We use a try-with-resource block to automatically do so.
-        try (ReadOnlyTransaction transaction = dbClient.readOnlyTransaction()) {
-            ResultSet resultSet =
-                    transaction.executeQuery(statement);
-            tracer.getCurrentSpan().addAnnotation("Executed Query");
-
-            processResults(keyField, resultSet);
-            resultSet.close();
-
-        } finally {
-            tracer.getCurrentSpan().addAnnotation("Closed Results");
-        }
+    public ReaderApp(){
 
     }
-
-
-    // Perform a read write transaction and throw an exception to roll back after read
-    private void performReadWriteTransaction(Tracer tracer,String keyField) throws Exception{
-        // Creates a database client
-        DatabaseClient dbClient = getDbClient(tracer);
-        Statement statement = getQueryStatement(tracer, keyField);
-
-        dbClient
-                .readWriteTransaction()
-                .run(
-                        new TransactionCallable<Void>() {
-                            @Override
-                            public Void run(TransactionContext transaction) throws Exception {
-                                ResultSet resultSet = transaction.executeQuery(statement);
-                                tracer.getCurrentSpan().addAnnotation("Executed Query");
-
-                                processResults(keyField, resultSet);
-                                resultSet.close();
-                                tracer.getCurrentSpan().addAnnotation("Closed Results");
-                                throw new Exception();
-                            }
-                        });
-    }
-
-
-    // Open resultSet and confirm a match with key else throw an exception
-    private void processResults(String keyField, ResultSet resultSet) throws Exception {
-        while (resultSet.next()) {
-            String result = resultSet.getString(0);
-            // match found
-            if(result.equals(keyField)){
-                break;
-            } else {
-                throw new Exception();
-            }
-        }
-    }
-
-
-    // create database client
-    private DatabaseClient getDbClient(Tracer tracer) {
-        DatabaseClient dbClient = spanner.getDatabaseClient(DatabaseId.of(
-                options.getProjectId(), instanceId, databaseId));
-        tracer.getCurrentSpan().addAnnotation("Created DbClient");
-        return dbClient;
-    }
-
-
-    // Build Query for Spanner
-    private Statement getQueryStatement(Tracer tracer, String keyField) {
-        Statement statement = Statement
-                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
-                .bind("KEY_FIELD").to(keyField)
-                .build();
-        tracer.getCurrentSpan().addAnnotation("Created Statement");
-        return statement;
-    }
-
 
     //  This method reads all 1000 files and returns a list of keys into ArrayList
     private static ArrayList<String> readFiles(String directoryPath) {
@@ -264,93 +103,97 @@ public class ReaderApp {
         } catch(Exception ex) {
 
         }
+        // Avoid printing spanner warning messages
+        System.setErr(new PrintStream(new OutputStream() {
+            public void write(int b) {
+            }
+        }));
+
 
         // total duration and count
         long totalElapsedTime = 0;
         long totalReadCount = 0;
-        //timer
-        long startTime = 0L;
-        long elapsedTime = 0L;
 
-        ReaderApp rApp= new ReaderApp();
+        SpannerUtility utility = SpannerUtility.getInstance(minSessions,maxSessions,instanceId,databaseId);
 
         String childWorkSpan = getTransactionType(readType);
         try {
-            // let's loop max_iterations times with 2 minute sleeps every time inner loop finishes
-            // trying to simulate customer's issue of session timeout.. I set setKeepAliveIntervalMinutes to 1 minute
-            for(int counter=0;counter<max_iterations;counter++){
-                System.out.println("Iteration Start : "+ Integer.toString(counter));
+           //loop through all keys
+            for(String key:keys) {
+                ///Based on user selection, perform reads
+                final Tracer tracer = Tracing.getTracer();
 
-                //loop through all keys
-                for(String key:keys) {
-                    ///Based on user selection, perform reads
-                    final Tracer tracer = Tracing.getTracer();
+                try (Scope ss = tracer
+                        .spanBuilder(childWorkSpan)
+                        // Enable the trace sampler.
+                        // We are always sampling for demo purposes only: this is a very high sampling
+                        // rate, but sufficient for the purpose of this quick demo.
+                        // More realistically perhaps tracing 1 in 10,000 might be more useful
+                        .setSampler(Samplers.alwaysSample())
+                        .startScopedSpan()) {
 
-                    try (Scope ss = tracer
-                            .spanBuilder(childWorkSpan)
-                            // Enable the trace sampler.
-                            // We are always sampling for demo purposes only: this is a very high sampling
-                            // rate, but sufficient for the purpose of this quick demo.
-                            // More realistically perhaps tracing 1 in 10,000 might be more useful
-                            .setSampler(Samplers.alwaysSample())
-                            .startScopedSpan()) {
+                    //Use the executor created by the newCachedThreadPool() method
+                    //only when you have a reasonable number of threads
+                    //or when they have a short duration.
+                    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
 
-                        // start timer
-                        startTime = System.currentTimeMillis();
-                        //execute based on readType selected by user
-                        switch(readType) {
-                            case "1":
-                                rApp.performStaleRead(tracer,key);
-                                break;
-                            case "2":
-                                rApp.performStrongRead(tracer,key);
-                                break;
-                            case "3":
-                                rApp.performReadOnlyTransaction(tracer,key);
-                                break;
-                            case "4":
-                                // try-catch needed because I am rolling back txn by throwing exception
-                                try{
-                                    rApp.performReadWriteTransaction(tracer,key);
-                                } catch(Exception ex){
+                    //execute based on readType selected by user
+                    switch(readType) {
+                        case "1":
+                            for (int i = 0; i <= 10; i++) {
+                                StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
+                                //executor.execute(task);
+
+                                Future<Long> elapsed = executor.submit(task);
+                                totalElapsedTime += elapsed.get();
+                            }
+                            executor.wait();
+                            executor.shutdown();
+
+                            break;
+                        case "2":
+
+                            break;
+                        case "3":
+
+                            break;
+                        case "4":
+                            // try-catch needed because I am rolling back txn by throwing exception
+                            try{
+                                for (int i = 0; i <= 10; i++)
+                                {
+                                  //  StaleRead task = new StaleRead(tracer,key, utility.getDbClient());
+                                  //  executor.execute(task);
                                 }
-                                break;
-                        }
-                        // end timer
-                        elapsedTime = System.currentTimeMillis() - startTime;
-                    }
-                    finally {
+                                executor.shutdown();
+
+                            } catch(Exception ex){
+                            }
+                            break;
                     }
 
-                    // update running total
-                    totalElapsedTime += elapsedTime;
-                    totalReadCount += 1;
-
-                    // print feedback every 1000 reads
-                    if(totalReadCount % 1000 == 0 ){
-                        printStatus(totalElapsedTime, totalReadCount);
-                    }
+                }
+                finally {
                 }
 
-                System.out.println("Iteration End: "+ Integer.toString(counter));
+                totalReadCount += 1;
 
-                // don't want to wait after last iteration
-                if(counter < max_iterations - 1){
-                    // Sleep 2 minutes. Assumption is sessions are deleted by now.
-                    System.out.println("Sleeping 2 minutes because Session inactive time is 1 minute.");
-                    Thread.sleep(1000*60*2);
+                // print feedback every 1000 reads
+                if(totalReadCount % 10 == 0 ){
+                    printStatus(totalElapsedTime, totalReadCount);
+                    break;
                 }
-
-
             }
+
+
+
         } finally {
             // Closes the client which will free up the resources used
-            rApp.closeService();
+            utility.closeService();
 
             // Prints the results
             System.out.println("\n\n FINAL RESULTS");
             printStatus(totalElapsedTime, totalReadCount);
-
         }
     }
 
@@ -380,6 +223,4 @@ public class ReaderApp {
         System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
         System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/(float)totalReadCount));
     }
-
-
 }
