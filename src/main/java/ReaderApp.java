@@ -180,7 +180,7 @@ public class ReaderApp {
                 totalReadCount += 1;
 
                 // print feedback every 1000 reads
-                if(totalReadCount % 100 == 0 ){
+                if(totalReadCount % 1000 == 0 ){
                     System.out.println("results");
                     printStatus(totalElapsedTime, totalReadCount,max_threads);
 
