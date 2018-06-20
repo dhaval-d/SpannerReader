@@ -120,14 +120,18 @@ public class ReaderApp {
 
         //warmupSessions
         System.out.println("Running warm up sessions code");
+        Thread.sleep(10000);
         warmupSessions(minSessions,utility.getDbClient());
         System.out.println("Ended warm up sessions code");
+
+
 
         int threadPoolSize = Runtime.getRuntime().availableProcessors() + 1;
         System.out.println("Number of processors avail : "+Integer.toString(threadPoolSize));
 
         String childWorkSpan = getTransactionType(readType);
         try {
+/*
            //loop through all keys
             for(String key:keys) {
                 ///Based on user selection, perform reads
@@ -179,9 +183,10 @@ public class ReaderApp {
                     printStatus(totalElapsedTime, totalReadCount,max_threads);
 
                 }
+
             }
 
-
+*/
 
         } finally {
             // Closes the client which will free up the resources used
@@ -191,6 +196,8 @@ public class ReaderApp {
             System.out.println("\n\n FINAL RESULTS");
             printStatus(totalElapsedTime, totalReadCount,max_threads);
         }
+
+
     }
 
     // this code runs through minimum sessions to warm up session pool
@@ -235,5 +242,10 @@ public class ReaderApp {
         System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
         if(totalReadCount!=0)
             System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount*max_threads)));
+    }
+
+
+    private void test(){
+
     }
 }

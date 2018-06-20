@@ -91,6 +91,7 @@ public class StaleRead implements Callable<Long>  {
                 .setSampler(Samplers.alwaysSample())
                 .startScopedSpan()) {
             Statement statement = getQueryStatement(keyField);
+
             // Queries the database
             try(ResultSet resultSet = dbClient
                     .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
