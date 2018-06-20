@@ -35,6 +35,7 @@ import io.opencensus.trace.Tracing;
 import io.opencensus.trace.samplers.Samplers;
 import io.opencensus.trace.Tracer;
 import java.util.concurrent.Callable;
+import java.util.Collections;
 
 import java.util.Arrays;
 
@@ -93,14 +94,34 @@ public class StaleRead implements Callable<Long>  {
             Statement statement = getQueryStatement(keyField);
 
             // Queries the database
+            String column = "pk_field";
+            Struct row =
+                    dbClient.singleUse().readRow("table1", Key.of(keyField), Collections.singleton(column));
+            String result = row.getString(column);
+
+            // match found
+            if(result.equals(keyField)){
+
+            } else {
+                throw new Exception("Records did not match");
+            }
+
+            tracer.getCurrentSpan().addAnnotation("Read row");
+
+            /*
             try(ResultSet resultSet = dbClient
                     .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
                     .executeQuery(statement)){
                 tracer.getCurrentSpan().addAnnotation("Executed Query");
                 processResults(keyField, resultSet);
+
+
+
+
             } finally {
                 tracer.getCurrentSpan().addAnnotation("Closed Results");
             }
+            */
 
         }
         finally {
