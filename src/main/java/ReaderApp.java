@@ -95,7 +95,7 @@ public class ReaderApp {
         // PoolSession min and max count
         minSessions = Integer.parseInt(args[4]);
         maxSessions = Integer.parseInt(args[5]);
-        int max_threads = Integer.parseInt(args[6]);
+        int max_threads  = Integer.parseInt(args[6]) * 2;
 
         //Read files to get a list of keys
         ArrayList<String> keys=null;
@@ -128,7 +128,7 @@ public class ReaderApp {
 
 
 
-        int threadPoolSize = Runtime.getRuntime().availableProcessors() + 1;
+        int threadPoolSize = Runtime.getRuntime().availableProcessors() * 2 + 1;
         System.out.println("Number of processors avail : "+Integer.toString(threadPoolSize));
 
         String childWorkSpan = getTransactionType(readType);
