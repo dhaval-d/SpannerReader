@@ -119,10 +119,10 @@ public class ReaderApp {
         SpannerUtility utility = SpannerUtility.getInstance(minSessions,maxSessions,instanceId,databaseId);
 
         //warmupSessions
-        System.out.println("Sleep 100 seconds before warm up sessions code");
-        Thread.sleep(100000);
-        System.out.println("Running warm up sessions code in 10 seconds");
-        Thread.sleep(10000);
+        //System.out.println("Sleep 100 seconds before warm up sessions code");
+        //Thread.sleep(100000);
+        //System.out.println("Running warm up sessions code in 10 seconds");
+        //Thread.sleep(10000);
         warmupSessions(minSessions,utility.getDbClient());
         System.out.println("Ended warm up sessions code");
 
@@ -133,7 +133,7 @@ public class ReaderApp {
 
         String childWorkSpan = getTransactionType(readType);
         try {
-/*
+
            //loop through all keys
             for(String key:keys) {
                 ///Based on user selection, perform reads
@@ -188,7 +188,7 @@ public class ReaderApp {
 
             }
 
-*/
+
 
         } finally {
             // Closes the client which will free up the resources used
