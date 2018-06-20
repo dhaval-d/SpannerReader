@@ -120,7 +120,7 @@ public class ReaderApp {
 
         //warmupSessions
         System.out.println("Running warm up sessions code");
-        Thread.sleep(10000);
+        Thread.sleep(100000);
         warmupSessions(minSessions,utility.getDbClient());
         System.out.println("Ended warm up sessions code");
 
