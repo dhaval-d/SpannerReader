@@ -16,57 +16,45 @@
 
 // Imports the Google Cloud client library
 import com.google.cloud.spanner.*;
-
-//import com.sun.tools.corba.se.idl.ExceptionEntry;
-import io.opencensus.common.Scope;
 import io.opencensus.contrib.grpc.metrics.RpcViews;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
-//import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
 import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
 import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
 import io.opencensus.trace.Tracing;
-import io.opencensus.trace.samplers.Samplers;
-import io.opencensus.trace.Tracer;
-
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Arrays;
-import java.io.PrintStream;
-import java.io.OutputStream;
+import java.util.concurrent.TimeUnit;
 
-
-
+/***
+ * This is a utility class to encapsulate all utility items including Spanner objects and options
+ */
 public class SpannerUtility {
     private SpannerOptions options;
     private Spanner spanner;
-
     private String instanceId;
     private String databaseId;
-
     private DatabaseClient dbClient;
 
     // static variable single_instance of type Singleton
     private static SpannerUtility single_instance = null;
 
-
     private SpannerUtility(int minSessions, int maxSessions,String instanceId, String databaseId ) throws Exception{
-        // Next up let's  install the exporter for Stackdriver tracing.
-        // StackdriverExporter.createAndRegister();
-
         this.instanceId = instanceId;
         this.databaseId = databaseId;
 
-
+        // Initialize stackdriver tracing
         StackdriverTraceExporter.createAndRegister(
                 StackdriverTraceConfiguration.builder().build());
         Tracing.getExportComponent().getSampledSpanStore().registerSpanNamesForCollection(
                 Arrays.asList("spanner_reads"));
-
 
         // Then the exporter for Stackdriver monitoring/metrics.
         StackdriverStatsExporter.createAndRegister();
         //RpcViews.registerAllCumulativeViews();
         RpcViews.registerAllGrpcViews();
 
-        // Instantiates a client
+        // Instantiates a Spanner options based on user input
         options = SpannerOptions.newBuilder()
                 .setSessionPoolOption(SessionPoolOptions.newBuilder()
                         .setMinSessions(minSessions)
@@ -77,10 +65,9 @@ public class SpannerUtility {
                         .setMaxIdleSessions(maxSessions)
                         .build())
                 .build();
-
+        // Build spanner service
         spanner = options.getService();
-
-
+        // Build a database client to perform transactions
         dbClient = createDbClient();
     }
 
@@ -89,24 +76,32 @@ public class SpannerUtility {
         spanner.close();
     }
 
-
-    public static SpannerUtility getInstance(int minSessions, int maxSessions,String instanceId, String databaseId){
+    // Create a singleton instance for Utility class for Spanner
+    protected static SpannerUtility getInstance(int minSessions, int maxSessions,String instanceId, String databaseId){
         if (single_instance == null){
             try{
                 single_instance = new SpannerUtility(minSessions,maxSessions,instanceId,databaseId);
             } catch (Exception ex){
-
+                ex.printStackTrace();
             }
         }
         return single_instance;
     }
 
-    public Spanner getService(){return spanner;}
+    // Return Spanner service
+    protected Spanner getService(){return spanner;}
 
-    public SpannerOptions getOptions(){return options;}
+    // Return Spanner options
+    protected SpannerOptions getOptions(){return options;}
 
+    // Get hostname of a machine
+    protected String getHostName() throws UnknownHostException {
+        InetAddress address = InetAddress.getLocalHost();
+        return address.getHostName();
+    }
 
-    public DatabaseClient getDbClient() {
+    // Return database client
+    protected DatabaseClient getDbClient() {
         return dbClient;
     }
 
@@ -118,7 +113,19 @@ public class SpannerUtility {
         return dbClient;
     }
 
+    // this code runs through minimum sessions to warm up session pool
+    protected void warmupSessions(int minSessions){
+        Statement statement = Statement
+                .newBuilder("SELECT 1")
+                .build();
 
-
-
+        for(int counter =0;counter < minSessions; counter++){
+            // Queries the database
+            try(ResultSet resultSet = this.dbClient
+                    .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
+                    .executeQuery(statement)){
+            } finally {
+            }
+        }
+    }
 }

@@ -17,95 +17,72 @@
 // Imports the Google Cloud client library
 import com.google.cloud.spanner.*;
 
-import java.util.concurrent.TimeUnit;
-
-import static com.google.cloud.spanner.TransactionRunner.TransactionCallable;
-
-import java.util.ArrayList;
-
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.BufferedReader;
-
-
 import io.opencensus.common.Scope;
-import io.opencensus.contrib.grpc.metrics.RpcViews;
-import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
-//import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
-import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
-import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
-import io.opencensus.trace.Tracing;
 import io.opencensus.trace.samplers.Samplers;
 import io.opencensus.trace.Tracer;
 
-import java.util.Arrays;
-import java.io.PrintStream;
-import java.io.OutputStream;
+import java.util.concurrent.Callable;
+import java.util.Collections;
 
+public class ReadTransaction implements Callable<Long>   {
+    private Tracer tracer;
+    private String keyField;
+    private DatabaseClient dbClient;
+    private int taskId;
+    private String hostName;
 
-
-public class ReadTransaction implements Runnable {
-    Tracer tracer;
-    String keyField;
-    DatabaseClient dbClient;
-
-    public ReadTransaction(Tracer tracer, String keyField, DatabaseClient dbClient){
+    // initialize task
+    public ReadTransaction(Tracer tracer, String keyField, DatabaseClient dbClient, int taskId,String hostName){
         this.tracer = tracer;
         this.keyField = keyField;
         this.dbClient = dbClient;
+        this.taskId = taskId;
+        this.hostName = hostName;
     }
 
     @Override
-    public void run() {
+    public Long call() {
+        long start_time = System.currentTimeMillis();
         try {
             performReadOnlyTransaction();
         } catch(Exception ex) {
+            System.out.println(ex.getMessage()+" - Inside Call()");
         }
+        return System.currentTimeMillis() -start_time;
     }
+
     // Perform a readonly transaction
     protected void performReadOnlyTransaction() throws Exception {
-        // Creates a database client
-         Statement statement = getQueryStatement(keyField);
+        try (Scope ss = tracer
+                .spanBuilder("Strong_read - "+ hostName +" - " + Integer.toString(this.taskId))
+                // Enable the trace sampler.
+                // We are always sampling for demo purposes only: this is a very high sampling
+                // rate, but sufficient for the purpose of this quick demo.
+                // More realistically perhaps tracing 1 in 10,000 might be more useful
+                .setSampler(Samplers.alwaysSample())
+                .startScopedSpan()) {
 
-        // ReadOnlyTransaction must be closed by calling close() on it to release resources held by it.
-        // We use a try-with-resource block to automatically do so.
-        try (ReadOnlyTransaction transaction = dbClient.readOnlyTransaction()) {
-            ResultSet resultSet =
-                    transaction.executeQuery(statement);
-            tracer.getCurrentSpan().addAnnotation("Executed Query");
-
-            processResults(keyField, resultSet);
-            resultSet.close();
-
-        } finally {
-            tracer.getCurrentSpan().addAnnotation("Closed Results");
-        }
-
-    }
-
-
-    // Open resultSet and confirm a match with key else throw an exception
-    private void processResults(String keyField, ResultSet resultSet) throws Exception {
-        while (resultSet.next()) {
-            String result = resultSet.getString(0);
-            // match found
-            if(result.equals(keyField)){
-                break;
-            } else {
-                throw new Exception();
+            // ReadOnlyTransaction must be closed by calling close() on it to release resources held by it.
+            // We use a try-with-resource block to automatically do so.
+            try (ReadOnlyTransaction transaction = dbClient.readOnlyTransaction()) {
+                String column = "pk_field";
+                Struct row  =
+                        transaction.readRow("table1", Key.of(keyField), Collections.singleton(column));
+                tracer.getCurrentSpan().addAnnotation("Executed Query");
+                String result = row.getString(column);
+                // match found
+                if(result.equals(keyField)){
+                } else {
+                    throw new Exception("Records did not match");
+                }
+            } finally {
+                tracer.getCurrentSpan().addAnnotation("Read row");
             }
+        } finally {
         }
+
+
     }
 
-    // Build Query for Spanner
-    protected Statement getQueryStatement(String keyField) {
-        Statement statement = Statement
-                .newBuilder("SELECT pk_field FROM table1 where pk_field= @KEY_FIELD")
-                .bind("KEY_FIELD").to(keyField)
-                .build();
-        // tracer.getCurrentSpan().addAnnotation("Created Statement");
-        return statement;
-    }
 
 }

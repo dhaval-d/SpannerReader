@@ -15,25 +15,20 @@
  */
 
 // Imports the Google Cloud client library
-
-import java.util.ArrayList;
+import com.google.cloud.spanner.*;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.BufferedReader;
-
-
-import com.google.cloud.spanner.*;
-import io.opencensus.common.Scope;
-//import io.opencensus.exporter.trace.stackdriver.StackdriverExporter;
-import io.opencensus.trace.Tracing;
-import io.opencensus.trace.samplers.Samplers;
-import io.opencensus.trace.Tracer;
-
+import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.io.PrintStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 
+import io.opencensus.trace.Tracing;
+import io.opencensus.trace.Tracer;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -41,24 +36,124 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 
+/**
+ * This is an application driver class that runs tasks depending on input from user.
+ */
 public class ReaderApp {
     // Name of your instance & database.
     private static String instanceId = "";
     private static String databaseId = "";
-    private static String parentSpanName = "read-keys";
+    private static int minSessions = 100;
+    private static int maxSessions = 100;
 
-    private static int minSessions = 0;
-    private static int maxSessions = 0;
+    // main
+    public static void main(String... args) throws Exception {
+        if (args.length != 7) {
+            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions> <thread_count>");
+            return;
+        }
+        // Name of your instance & database.
+        instanceId = args[0];
+        databaseId = args[1];
+        // type of read
+        String readType = args[2];
+        // location of files where your keys exist
+        String directoryPath = args[3];
+        // PoolSession min and max count
+        minSessions = Integer.parseInt(args[4]);
+        maxSessions = Integer.parseInt(args[5]);
+        // Number of threads
+        int max_threads  = Integer.parseInt(args[6]) * 2;
+
+        //Read files to get a list of keys
+        ArrayList<String> keys=null;
+        try {
+            keys = readFiles(directoryPath);
+            System.out.println("Keys read: " + Integer.toString(keys.size()));
+        } catch(Exception ex) {
+            System.out.println("File read error: "+ex.getMessage());
+        }
+
+        // Avoid printing spanner warning messages
+        System.setErr(new PrintStream(new OutputStream() {
+            public void write(int b) {
+            }
+        }));
+
+        // total duration and count
+        long totalElapsedTime = 0;
+        long totalReadCount = 0;
 
 
-    public ReaderApp(){
 
+        // Create spanner options, connection and service objects
+        SpannerUtility utility = SpannerUtility.getInstance(minSessions,maxSessions,instanceId,databaseId);
+
+        // warm-up your sessions by running a loop
+        utility.warmupSessions(minSessions);
+
+        // Because most of these threads would wait for IO from Spanner I want to double the number of threads in a pool.
+        int threadPoolSize = Runtime.getRuntime().availableProcessors() * 2;
+        System.out.println("Number of processors avail : "+Integer.toString(threadPoolSize));
+
+        try {
+            //loop through all keys
+            for(String key:keys) {
+                // get tracer object
+                final Tracer tracer = Tracing.getTracer();
+                // create a pool with
+                ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threadPoolSize);
+
+                //execute based on readType selected by user
+                switch(readType) {
+                    case "1":
+                        for (int i = 0; i < max_threads; i++) {
+                            StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i,utility.getHostName());
+                            Future<Long> elapsed = executor.submit(task);
+                            totalElapsedTime += elapsed.get();
+                        }
+                        break;
+                    case "2":
+
+                        break;
+                    case "3":
+
+                        break;
+                    case "4":
+                        // try-catch needed because I am rolling back txn by throwing exception
+                        try{
+
+
+                        } catch(Exception ex) {
+                        }
+                        break;
+                }
+                executor.shutdown();
+
+                // calculate total records
+                totalReadCount += max_threads;
+                // print feedback every 1000 reads
+                if(totalReadCount % 1000 == 0 ){
+                    System.out.println("results");
+                    printStatus(totalElapsedTime, totalReadCount);
+                }
+            }
+        } finally {
+            // Closes the client which will free up the resources used
+            utility.closeService();
+            // Prints the results
+            System.out.println("\n\n FINAL RESULTS");
+            printStatus(totalElapsedTime, totalReadCount);
+        }
     }
 
-    //  This method reads all 1000 files and returns a list of keys into ArrayList
+
+
+    // This method reads all 1000 files and returns a list of keys into ArrayList
     private static ArrayList<String> readFiles(String directoryPath) {
         ArrayList<String> results=new ArrayList<String>();
 
+        // Files have only a key column stored in every line
         File files = new File(directoryPath);
         String[] strFiles = files.list();
 
@@ -79,175 +174,15 @@ public class ReaderApp {
         return results;
     }
 
-    // main
-    public static void main(String... args) throws Exception {
-        if (args.length != 7) {
-            System.err.println("Usage: ReaderApp <instance_id> <database_id> <read_type> <directory_path> <min_sessions> <max_sessions> <thread_count>");
-            return;
-        }
-        // Name of your instance & database.
-        instanceId = args[0];
-        databaseId = args[1];
-        // type of read
-        String readType = args[2];
-        // location of files where your keys exist
-        String directoryPath = args[3];
-        // PoolSession min and max count
-        minSessions = Integer.parseInt(args[4]);
-        maxSessions = Integer.parseInt(args[5]);
-        int max_threads  = Integer.parseInt(args[6]) * 2;
-
-        //Read files to get a list of keys
-        ArrayList<String> keys=null;
-        try {
-            keys = readFiles(directoryPath);
-            System.out.println("Keys read: " + Integer.toString(keys.size()));
-        } catch(Exception ex) {
-
-        }
-        // Avoid printing spanner warning messages
-        System.setErr(new PrintStream(new OutputStream() {
-            public void write(int b) {
-            }
-        }));
-
-
-        // total duration and count
-        long totalElapsedTime = 0;
-        long totalReadCount = 0;
-
-        SpannerUtility utility = SpannerUtility.getInstance(minSessions,maxSessions,instanceId,databaseId);
-
-        //warmupSessions
-        //System.out.println("Sleep 100 seconds before warm up sessions code");
-        //Thread.sleep(100000);
-        //System.out.println("Running warm up sessions code in 10 seconds");
-        //Thread.sleep(10000);
-        warmupSessions(minSessions,utility.getDbClient());
-        System.out.println("Ended warm up sessions code");
 
 
 
-        int threadPoolSize = Runtime.getRuntime().availableProcessors() * 2 + 1;
-        System.out.println("Number of processors avail : "+Integer.toString(threadPoolSize));
-
-        String childWorkSpan = getTransactionType(readType);
-        try {
-
-           //loop through all keys
-            for(String key:keys) {
-                ///Based on user selection, perform reads
-                final Tracer tracer = Tracing.getTracer();
-
-                //Use the executor created by the newCachedThreadPool() method
-                //only when you have a reasonable number of threads
-                //or when they have a short duration.
-
-                ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threadPoolSize);
-
-                //execute based on readType selected by user
-                switch(readType) {
-                    case "1":
-                        for (int i = 0; i < max_threads; i++) {
-
-                                //singleton dbClient
-                                StaleRead task = new StaleRead(tracer,key, utility.getDbClient(),i);
-                                //instantiate new dbclient
-                               // StaleRead task = new StaleRead(tracer,key,utility.getService(),utility.getOptions(),i);
-                                Future<Long> elapsed = executor.submit(task);
-                                totalElapsedTime += elapsed.get();
-                        }
-                        //        executor.wait();
-                        executor.shutdown();
-
-                        break;
-                    case "2":
-
-                        break;
-                    case "3":
-
-                        break;
-                    case "4":
-                        // try-catch needed because I am rolling back txn by throwing exception
-                        try{
-
-
-                        } catch(Exception ex){
-                        }
-                        break;
-                }
-
-                totalReadCount += 1;
-
-                // print feedback every 1000 reads
-                if(totalReadCount % 1000 == 0 ){
-                    System.out.println("results");
-                    printStatus(totalElapsedTime, totalReadCount,max_threads);
-
-                }
-
-            }
-
-
-
-        } finally {
-            // Closes the client which will free up the resources used
-            utility.closeService();
-
-            // Prints the results
-            System.out.println("\n\n FINAL RESULTS");
-            printStatus(totalElapsedTime, totalReadCount,max_threads);
-        }
-
-
-    }
-
-    // this code runs through minimum sessions to warm up session pool
-    private static void warmupSessions(int minSessions, DatabaseClient dbClient){
-        Statement statement = Statement
-                .newBuilder("SELECT 1")
-                .build();
-
-        for(int counter =0;counter < minSessions; counter++){
-            // Queries the database
-            try(ResultSet resultSet = dbClient
-                    .singleUse(TimestampBound.ofExactStaleness(15, TimeUnit.SECONDS))
-                    .executeQuery(statement)){
-            } finally {
-            }
-        }
-    }
-
-    // type of transaction we are running
-    private static String getTransactionType(String readType) {
-        String childWorkSpan="";
-        switch(readType) {
-            case "1":
-                childWorkSpan = "Stale_Read";
-                break;
-            case "2":
-                childWorkSpan = "Strong_Read";
-                break;
-            case "3":
-                childWorkSpan = "ReadOnly_Transaction";
-                break;
-            case "4":
-                childWorkSpan = "ReadWrite_Transaction";
-                break;
-        }
-        return childWorkSpan;
-    }
 
     // Prints status of the process
-    private static void printStatus(long totalElapsedTime, long totalReadCount,int max_threads) {
+    private static void printStatus(long totalElapsedTime, long totalReadCount) {
         System.out.println("Total Elapsed Time     :"+Long.toString(totalElapsedTime));
         System.out.println("Total Read Count       :"+Long.toString(totalReadCount));
         if(totalReadCount!=0)
-            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount*max_threads)));
-    }
-
-
-    private void test(){
-
+            System.out.println("Average Read Time/Op   :"+Float.toString((float)totalElapsedTime/((float)totalReadCount)));
     }
 }
