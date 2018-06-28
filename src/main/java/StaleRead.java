@@ -55,7 +55,7 @@ public class StaleRead implements Callable<Long>  {
         return System.currentTimeMillis() -start_time;
     }
 
-    // Perform a stale read with exact staleness of 15 seconds
+    // Perform a stale read with exact staleness of 15 seconds. This is supposed to be the fastest.
     protected void performStaleRead() throws Exception{
         try (Scope ss = tracer
                 .spanBuilder("Stale_read - "+ hostName +" - " + Integer.toString(this.taskId))
