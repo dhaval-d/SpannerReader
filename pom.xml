@@ -21,8 +21,8 @@
     </plugins>
 </build>
     <properties>
-        <spannerVersion>0.53.0-beta</spannerVersion>
-        <opencensusVersion>0.15.0</opencensusVersion>
+        <spannerVersion>0.50.0-beta</spannerVersion>
+        <opencensusVersion>0.14.0</opencensusVersion>
     </properties>
     <dependencies>
 
